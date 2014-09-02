@@ -33,7 +33,7 @@ public final class QEPUAssembler {
         SEF,GEF, // SET AND GET FLAGS
         BES,BLW,BLE,BEQ,BGE,BGR,BDI,BZE,BNZ, // BRANCHING WITH OR WITHOUT JUMP STACK
         CALL,RET,JMP, // UNCONDICIONAL JUMPS WITH AND WITHOUT JUMP STACK
-        ADD,SUB,MUL,DIV,AND,OR,NOR,XOR,NAN,NOT,SHL,SHR, // ARITHMETIC AND LOGIC FUNCTIONS
+        ADD,ADDRK,SUB,SUBRK,SUBKR,MUL,MULRK,DIV,DIVRK,DIVKR,AND,ANDRK,ANDKR,OR,ORRK,ORKR,NOR,NORRK,NORKR,XOR,XORRK,XORKR,NAN,NANRK,NANKR,NOT,SHL,SHLRK,SHLKR,SHR,SHRRK,SHRKR, // ARITHMETIC AND LOGIC OPERATIONS
         INT, // SYSTEM CALLS
         DLY, // DELAY
         NOP, // DOES NOTHING (GOOD FOR DELAYS)
@@ -303,47 +303,96 @@ public final class QEPUAssembler {
                     case "ADD": 
                         if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
                             insert_machinecode(Instset.ADD.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else
+                            if((op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("K")) || (op_types[0].equals("M") && op_types[1].equals("K") && op_types[2].equals("M")))
+                                insert_machinecode(Instset.ADDRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                            else
+                                throw new Exception("The instruction is malformed");
                         break;   
                     case "SUB": 
-                        if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
+                        if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M")) //M M M
                             insert_machinecode(Instset.SUB.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else
+                            if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("K")) // M M K
+                                insert_machinecode(Instset.SUBRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                            else
+                                if(op_types[0].equals("M") && op_types[1].equals("K") && op_types[2].equals("M")) // M K M
+                                    insert_machinecode(Instset.SUBKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                                else throw new Exception("The instruction is malformed");
                         break;   
                     case "MUL": 
                         if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
                             insert_machinecode(Instset.MUL.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else
+                            if((op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("K")) || (op_types[0].equals("M") && op_types[1].equals("K") && op_types[2].equals("M")))
+                                insert_machinecode(Instset.MULRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                            else throw new Exception("The instruction is malformed");
                         break;   
                     case "DIV": 
                         if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
                             insert_machinecode(Instset.DIV.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else
+                            if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("K")) // M M K
+                                insert_machinecode(Instset.DIVRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                            else
+                                if(op_types[0].equals("M") && op_types[1].equals("K") && op_types[2].equals("M")) // M K M
+                                    insert_machinecode(Instset.DIVKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                                else throw new Exception("The instruction is malformed");
                         break;   
                     case "AND": 
                         if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
                             insert_machinecode(Instset.AND.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else
+                            if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("K")) // M M K
+                                insert_machinecode(Instset.ANDRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                            else
+                                if(op_types[0].equals("M") && op_types[1].equals("K") && op_types[2].equals("M")) // M K M
+                                    insert_machinecode(Instset.ANDKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                                else throw new Exception("The instruction is malformed");
                         break;   
                     case "OR": 
                         if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
                             insert_machinecode(Instset.OR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else
+                            if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("K")) // M M K
+                                insert_machinecode(Instset.ORRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                            else
+                                if(op_types[0].equals("M") && op_types[1].equals("K") && op_types[2].equals("M")) // M K M
+                                    insert_machinecode(Instset.ORKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                                else throw new Exception("The instruction is malformed");
                         break;   
                     case "NOR": 
                         if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
                             insert_machinecode(Instset.NOR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else
+                            if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("K")) // M M K
+                                insert_machinecode(Instset.NORRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                            else
+                                if(op_types[0].equals("M") && op_types[1].equals("K") && op_types[2].equals("M")) // M K M
+                                    insert_machinecode(Instset.NORKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                                else throw new Exception("The instruction is malformed");
                         break;   
                     case "XOR": 
                         if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
                             insert_machinecode(Instset.XOR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else
+                            if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("K")) // M M K
+                                insert_machinecode(Instset.XORRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                            else
+                                if(op_types[0].equals("M") && op_types[1].equals("K") && op_types[2].equals("M")) // M K M
+                                    insert_machinecode(Instset.XORKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                                else throw new Exception("The instruction is malformed");
                         break;   
                     case "NAN": 
                         if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
                             insert_machinecode(Instset.NAN.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else
+                            if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("K")) // M M K
+                                insert_machinecode(Instset.NANRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                            else
+                                if(op_types[0].equals("M") && op_types[1].equals("K") && op_types[2].equals("M")) // M K M
+                                    insert_machinecode(Instset.NANKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                                else throw new Exception("The instruction is malformed");
                         break;   
                     case "NOT": 
                         if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
@@ -353,12 +402,24 @@ public final class QEPUAssembler {
                     case "SHL": 
                         if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
                             insert_machinecode(Instset.SHL.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else
+                            if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("K")) // M M K
+                                insert_machinecode(Instset.SHLRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                            else
+                                if(op_types[0].equals("M") && op_types[1].equals("K") && op_types[2].equals("M")) // M K M
+                                    insert_machinecode(Instset.SHLKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                                else throw new Exception("The instruction is malformed");
                         break;   
                     case "SHR": 
                         if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("M"))
                             insert_machinecode(Instset.SHR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else
+                            if(op_types[0].equals("M") && op_types[1].equals("M") && op_types[2].equals("K")) // M M K
+                                insert_machinecode(Instset.SHRRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                            else
+                                if(op_types[0].equals("M") && op_types[1].equals("K") && op_types[2].equals("M")) // M K M
+                                    insert_machinecode(Instset.SHRKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
+                                else throw new Exception("The instruction is malformed");
                         break;   
                     case "INT":
                         if(op_types[0].equals("K")) insert_machinecode(Instset.INT.ordinal(), extractNumber(operands[OP1]),0,0);
