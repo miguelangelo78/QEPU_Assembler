@@ -17,10 +17,11 @@ public final class QEPUAssembler {
     private static final int FUNC=0,OP1=1,OP2=2,OP3=3,
                              REGISTER=4,QUBIT=5,MEMORY=6,FLAG=7,CONSTANT=8,VARIABLE=9;
     private static final int INSTR_WIDTH=13,MAX_OPERAND_COUNT=3;
-    private static final char STRING_TERMINATOR='$';
+    private static final char STRING_TERMINATOR='$',LABEL_TYPE='@',VAR_TYPE='$';
     
     private int code_currline;
     private Map<Integer,Integer> code_lineoffsets;
+    private Map<String,Integer> code_labels;
     
     
     private FileOutputStream mc_fos;
@@ -116,6 +117,8 @@ public final class QEPUAssembler {
         put("Q",new int[]{QUBIT,0});
         put("M",new int[]{MEMORY,0});
         put("F",new int[]{FLAG,0});
+        put("@",new int[]{FUNC,1});
+        put("#",new int[]{FUNC,0}); // COMMENTS
         put("K",new int[]{CONSTANT,0}); //MAYBE WILL USE THIS*/
     }};
     
@@ -153,7 +156,9 @@ public final class QEPUAssembler {
     public String extractType(String operand) throws Exception{
         Matcher matcher=Pattern.compile("[a-z|A-Z]+").matcher(operand); matcher.find();
         String match;
-        if(operand.contains("\"")) match="S"; // THE OPERAND IS A STRING
+        if(operand.charAt(0)==LABEL_TYPE) match="L"; // THE OPERAND IS A LABEL
+        else if(operand.charAt(0)==VAR_TYPE) match="V"; // THE OPERAND IS A VARIABLE
+        else if(operand.contains("\"")) match="S"; // THE OPERAND IS A STRING
         else if(operand.contains("'")) match="C"; // THE OPERAND IS A CHARACTER
         else
             try{
@@ -172,7 +177,7 @@ public final class QEPUAssembler {
     public int getJumpOffset(int jump_address){
         int new_jump_address=jump_address;
         for(Integer key:code_lineoffsets.keySet()) if(jump_address>key) new_jump_address+=code_lineoffsets.get(key)-1;
-        return new_jump_address;
+        return new_jump_address-1;
     }
     
     public int assemble(String assembly){
@@ -180,16 +185,22 @@ public final class QEPUAssembler {
         
         code_currline=0;
         code_lineoffsets=new HashMap<Integer,Integer>();
-    
+        code_labels=new HashMap<String,Integer>();
+        
         int success=0;
         try{
             //TODO: read all lines and iterate through them
-            String [] codelines=assembly.split("\\n");
+            ArrayList<String> codelines=new ArrayList<>();
+            for(String line:assembly.split("\\n")){
+                String line_sanitized=line.trim();
+                if(line_sanitized.length()>0 && line_sanitized.charAt(0)!='#') codelines.add(line_sanitized);
+            }
             
-            for(code_currline=0;code_currline<codelines.length;code_currline++){
+            Pattern line_patt=Pattern.compile("(?:\".+?\")|[a-z|A-Z|\\d|_|'|@|#]+?(?: |'|\"|\n|$)"); // OPERAND PATTERN
+            
+            for(code_currline=0;code_currline<codelines.size();code_currline++){
                 //FETCH FUNC,OP1,OP2 AND OP3:
-                //Matcher matcher=Pattern.compile("[a-z|A-Z|\\d|\"|']+?(?: |\n|$)").matcher(codelines[code_currline].trim());
-                Matcher matcher=Pattern.compile("(?:\".+?\")|[a-z|A-Z|\\d]+?(?: |\"|$)").matcher(codelines[code_currline].trim());
+                Matcher matcher=line_patt.matcher(codelines.get(code_currline).trim());
                 ArrayList<String> operands_arrlist=new ArrayList<>();
                 while(matcher.find()) operands_arrlist.add(matcher.group(0).trim());
                 String [] operands=operands_arrlist.toArray(new String[operands_arrlist.size()]);
@@ -205,10 +216,11 @@ public final class QEPUAssembler {
                     operands[i+1]=operands[i+1].replaceAll("'|\"", "");
                 }
                 
-                for(Integer key:code_lineoffsets.keySet())
-                    System.out.println(key+":"+code_lineoffsets.get(key));
-                
                 switch(function){ // FUNCTION OPERAND
+                    case "@":
+                        code_labels.put(operands[OP1],code_currline+1);
+                        insert_machinecode(Instset.NOP.ordinal(), 0, 0, 0);
+                        break;
                     case "MOV":
                         // TODO: DECIDE WHETHER IT IS A LOD, STR, MOR, MOM, CMT, CMP, CRW OR CQW
                         if(op_types[0].equals("M") && op_types[1].equals("M"))
@@ -297,46 +309,73 @@ public final class QEPUAssembler {
                         else throw new Exception("The instruction is malformed");
                         break;   
                     case "BLW": 
+                        if(op_types[0].equals("L"))
+                            insert_machinecode(Instset.BLW.ordinal(), getJumpOffset(extractNumber(""+code_labels.get(operands[OP1].replace("@","")))), 0, 0);
+                        else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BLW.ordinal(),getJumpOffset(extractNumber(operands[OP1])), 0, 0);
                         else throw new Exception("The instruction is malformed");
                         break;    
                     case "BLE": 
+                        if(op_types[0].equals("L"))
+                            insert_machinecode(Instset.BLE.ordinal(), getJumpOffset(extractNumber(""+code_labels.get(operands[OP1].replace("@","")))), 0, 0);
+                        else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BLW.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
                         else throw new Exception("The instruction is malformed");
                         break;   
                     case "BEQ": 
+                        if(op_types[0].equals("L"))
+                            insert_machinecode(Instset.BEQ.ordinal(), getJumpOffset(extractNumber(""+code_labels.get(operands[OP1].replace("@","")))), 0, 0);
+                        else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BEQ.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
                         else throw new Exception("The instruction is malformed");
                         break;   
                     case "BGE": 
+                        if(op_types[0].equals("L"))
+                            insert_machinecode(Instset.BGE.ordinal(), getJumpOffset(extractNumber(""+code_labels.get(operands[OP1].replace("@","")))), 0, 0);
+                        else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BGE.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
                         else throw new Exception("The instruction is malformed");
                         break;   
                     case "BGR": 
+                        if(op_types[0].equals("L"))
+                            insert_machinecode(Instset.BGR.ordinal(), getJumpOffset(extractNumber(""+code_labels.get(operands[OP1].replace("@","")))), 0, 0);
+                        else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BGR.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
                         else throw new Exception("The instruction is malformed");
                         break;   
                     case "BDI": 
+                        if(op_types[0].equals("L"))
+                            insert_machinecode(Instset.BDI.ordinal(), getJumpOffset(extractNumber(""+code_labels.get(operands[OP1].replace("@","")))), 0, 0);
+                        else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BDI.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
                         else throw new Exception("The instruction is malformed");
                         break;   
                     case "BZE": 
+                        if(op_types[0].equals("L"))
+                            insert_machinecode(Instset.BZE.ordinal(), getJumpOffset(extractNumber(""+code_labels.get(operands[OP1].replace("@","")))), 0, 0);
+                        else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BZE.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
                         else throw new Exception("The instruction is malformed");
                         break;   
                     case "BNZ": 
+                        if(op_types[0].equals("L"))
+                            insert_machinecode(Instset.BNZ.ordinal(), getJumpOffset(extractNumber(""+code_labels.get(operands[OP1].replace("@","")))), 0, 0);
+                        else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BNZ.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
                         else throw new Exception("The instruction is malformed");
                         break;   
                     case "CALL": 
+                        if(op_types[0].equals("L"))
+                            insert_machinecode(Instset.CALL.ordinal(), getJumpOffset(extractNumber(""+code_labels.get(operands[OP1].replace("@","")))), 0, 0);
+                        else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.CALL.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
                         else throw new Exception("The instruction is malformed");
@@ -345,6 +384,9 @@ public final class QEPUAssembler {
                         insert_machinecode(Instset.RET.ordinal(), 0, 0, 0);
                         break;   
                     case "JMP": 
+                        if(op_types[0].equals("L"))
+                            insert_machinecode(Instset.JMP.ordinal(), getJumpOffset(extractNumber(""+code_labels.get(operands[OP1].replace("@","")))), 0, 0);
+                        else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.JMP.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
                         else throw new Exception("The instruction is malformed");
@@ -571,10 +613,12 @@ public final class QEPUAssembler {
             }
         }catch(Exception e){
             code_currline++;
-            System.err.println("There was an error in the line: "+code_currline+". "+e.getMessage());
             success=code_currline;
+            System.err.println("There was an error in the line: "+code_currline+". "+e.getMessage());
             e.printStackTrace();
         }
+        insert_machinecode(Instset.HLT.ordinal(), 0, 0, 0);
+        insert_machinecode(Instset.NOP.ordinal(), 0, 0, 0);
         close_file();
         return success;
     }
