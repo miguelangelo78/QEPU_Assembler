@@ -119,7 +119,7 @@ public final class QEPUAssembler {
         put("M",new int[]{MEMORY,0});
         put("F",new int[]{FLAG,0});
         put("@",new int[]{FUNC,1}); // LABELS
-        put("$",new int[]{FUNC,2}); // VARIABLES
+        put("$",new int[]{FUNC,3}); // VARIABLES ($varname content size)
         put("K",new int[]{CONSTANT,0}); //MAYBE WILL USE THIS*/
     }};
     
@@ -192,21 +192,30 @@ public final class QEPUAssembler {
         
         int success=0;
         try{
-            //TODO: read all lines and iterate through them
+            //Read all lines and iterate through them:
             ArrayList<String> codelines=new ArrayList<>();
+            int line_ctr=0;
             for(String line:assembly.split("\\n")){
                 String line_sanitized=line.trim();
-                if(line_sanitized.length()>0 && line_sanitized.charAt(0)!='#') codelines.add(line_sanitized);
+                if(line_sanitized.length()>0 && line_sanitized.charAt(0)=='@') code_labels.put(line_sanitized.replace("@",""),line_ctr+1); // DECLARE LABELS THAT ARE DECLARED IN THE WHOLE FILE
+                codelines.add(line_sanitized); // LINE IS VALID
+                line_ctr++;
             }
             
+            //Translate all lines to machine code:
             Pattern line_patt=Pattern.compile("^(?:\\$|@|#)|(?:\".+?\")|[a-z|A-Z|\\d|_|'|$|@|#]+?(?: |'|\"|\n|$)"); // OPERAND PATTERN
-            
             for(code_currline=0;code_currline<codelines.size();code_currline++){
                 //FETCH FUNC,OP1,OP2 AND OP3:
-                Matcher matcher=line_patt.matcher(codelines.get(code_currline).trim());
+                String currline=codelines.get(code_currline);
+                Matcher matcher=line_patt.matcher(currline);
                 ArrayList<String> operands_arrlist=new ArrayList<>();
                 while(matcher.find()) operands_arrlist.add(matcher.group(0).trim());
                 String [] operands=operands_arrlist.toArray(new String[operands_arrlist.size()]);
+                
+                if(currline.length()<=0 || currline.charAt(0)=='#'){
+                    insert_machinecode(Instset.NOP.ordinal(), 0, 0, 0);
+                    continue;
+                }
                 
                 String function=operands[FUNC].toUpperCase();
                 if(!dict.containsKey(function) || dict.get(function)[0]!=FUNC || dict.get(function)[1]!=operands.length-1) // DOES THIS FUNCTION EXIST IN THE DICTIONARY?
@@ -221,36 +230,63 @@ public final class QEPUAssembler {
                 
                 switch(function){ // FUNCTION OPERAND
                     case "$": // VARIABLE DECLARATION
-                        int var_bytelength=0;
-                        if(op_types[1].equals("S")){
-                            var_bytelength=operands[OP2].length()+1;
-                            operands[OP2]+=STRING_TERMINATOR;
-                            for(int i=0;i<operands[OP2].length();i++)
-                                insert_machinecode(Instset.CRW.ordinal(),code_variables_address_start+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
-                            code_lineoffsets.put(code_currline+1,operands[OP2].length());
-                        }else if(op_types[1].equals("C")){
-                            var_bytelength=1;
-                            if(operands[OP2].length()!=1) throw new Exception("The second operand has incorrect size");
-                            else insert_machinecode(Instset.CRW.ordinal(), code_variables_address_start,extractNumber(""+((int)operands[OP2].charAt(0))), 0);
-                        }else if(op_types[1].equals("K")){
-                            var_bytelength=1;
-                            insert_machinecode(Instset.CRW.ordinal(),code_variables_address_start,extractNumber(operands[OP2]),0);
-                        }else throw new Exception("The operands are wrong");
+                        if(!op_types[2].equals("K")) throw new Exception("The size operand (3rd op.) must be a number");
+                        int var_bytelength=extractNumber(operands[OP3]);
+                        if(var_bytelength<=0) throw new Exception("The size operand (3rd op.) must be greater than 0");
                         
-                        code_variables.put(operands[OP1],new int[]{code_variables_address_start,var_bytelength});
+                        if(op_types[1].equals("V")){ // $ VAR1 = $VAR2
+                            String var1=operands[OP1].replace("$","");
+                            String var2=operands[OP2].replace("$","");
+                            int var2_bytelength=code_variables.get(var2)[1];
+                            
+                            if(var2_bytelength>var_bytelength) throw new Exception("The variable '"+var2+"' is bigger than the variable '"+var1+"'");
+                            code_variables.put(var1,new int[]{code_variables_address_start,var_bytelength});
+                        
+                            for(int i=0;i<var_bytelength;i++)
+                                if(i<var2_bytelength) insert_machinecode(Instset.MOM.ordinal(), code_variables.get(var1)[0]+i, code_variables.get(var2)[0]+i, 0);
+                                else insert_machinecode(Instset.CRW.ordinal(), code_variables.get(var1)[0]+i,0, 0);
+                            code_lineoffsets.put(code_currline+1,var_bytelength);
+                        }else
+                        if(op_types[1].equals("S")){ // $VAR=STRING
+                            operands[OP2]+=STRING_TERMINATOR;
+                            if(var_bytelength<operands[OP2].length()) throw new Exception("The variable's size is too small for the string");
+                            for(int i=0;i<operands[OP2].length();i++) // WRITE THE CONTENT
+                                insert_machinecode(Instset.CRW.ordinal(),code_variables_address_start+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
+                            for(int i=operands[OP2].length();i<var_bytelength;i++) // WRITE THE REST (EMPTY SPACE RESERVED FOR THE VARIABLE)
+                                insert_machinecode(Instset.CRW.ordinal(),code_variables_address_start+i, 0, 0);
+                            code_lineoffsets.put(code_currline+1,var_bytelength);
+                        }else if(op_types[1].equals("C")) // $VAR=CHAR
+                            if(operands[OP2].length()!=1) throw new Exception("The second operand has incorrect size");
+                            else{
+                                insert_machinecode(Instset.CRW.ordinal(), code_variables_address_start,extractNumber(""+((int)operands[OP2].charAt(0))), 0); // WRITE THE CONTENT
+                                for(int i=1;i<var_bytelength;i++) // WRITE THE REST (EMPTY SPACE RESERVED FOR THE VARIABLE)
+                                    insert_machinecode(Instset.CRW.ordinal(), code_variables_address_start+i, 0, 0);
+                            }
+                        else if(op_types[1].equals("K")){ // $VAR=NUMBER
+                            insert_machinecode(Instset.CRW.ordinal(),code_variables_address_start,extractNumber(operands[OP2]),0); // WRITE THE CONTENT
+                            for(int i=1;i<var_bytelength;i++) // WRITE THE REST (EMPTY SPACE RESERVED FOR THE VARIABLE)
+                                insert_machinecode(Instset.CRW.ordinal(), code_variables_address_start+i, 0, 0);
+                        }
+                        else throw new Exception("The operands are wrong");
+                        
+                        if(!code_variables.containsKey(operands[OP1])) code_variables.put(operands[OP1],new int[]{code_variables_address_start,var_bytelength});
                         code_variables_address_start+=var_bytelength;
                         break;
                     case "@": // LABEL DECLARATION
-                        code_labels.put(operands[OP1],code_currline+1);
+                        if(!code_labels.containsKey(operands[OP1])) code_labels.put(operands[OP1],code_currline+1);
                         insert_machinecode(Instset.NOP.ordinal(), 0, 0, 0);
                         break;
                     case "MOV":
                         // TODO: DECIDE WHETHER IT IS A LOD, STR, MOR, MOM, CMT, CMP, CRW OR CQW
                         if(op_types[0].equals("V") && op_types[1].equals("S")){ // V S -> INCORRECT (RESERVE MORE SPACE FOR THE VARIABLES)
+                            if(!code_variables.containsKey(operands[OP1])) throw new Exception("The variable '"+operands[OP1]+"' was not declared");
                             operands[OP2]+=STRING_TERMINATOR;
-                            for(int i=0;i<operands[OP2].length();i++)
-                                insert_machinecode(Instset.CRW.ordinal(),code_variables.get(operands[OP1])[0]+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
-                            code_lineoffsets.put(code_currline+1,operands[OP2].length());
+                            int var_bytecount=code_variables.get(operands[OP1])[1];
+                            if(var_bytecount<operands[OP2].length()) throw new Exception("The string is too large for the variable '"+operands[OP1]+"'");
+                            for(int i=0;i<var_bytecount;i++)
+                                if(i<operands[OP2].length()) insert_machinecode(Instset.CRW.ordinal(), code_variables.get(operands[OP1])[0]+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
+                                else insert_machinecode(Instset.CRW.ordinal(), code_variables.get(operands[OP1])[0]+i, 0, 0);
+                            code_lineoffsets.put(code_currline+1,var_bytecount);
                         }
                         else
                         if(op_types[0].equals("V") && op_types[1].equals("C")) // V C
@@ -263,8 +299,15 @@ public final class QEPUAssembler {
                         if(op_types[0].equals("V") && op_types[1].equals("M")) // V M
                             insert_machinecode(Instset.MOM.ordinal(),code_variables.get(operands[OP1])[0],extractNumber(operands[OP2]),0);
                         else
-                        if(op_types[0].equals("V") && op_types[1].equals("V")) // V V -> INCORRECT (RESERVE MORE SPACE FOR THE VARIABLES)
-                            insert_machinecode(Instset.MOM.ordinal(),code_variables.get(operands[OP1])[0],code_variables.get(operands[OP2])[0],0);
+                        if(op_types[0].equals("V") && op_types[1].equals("V")){ // V V -> INCORRECT (RESERVE MORE SPACE FOR THE VARIABLES)
+                            int var1_bytecount=code_variables.get(operands[OP1])[1];
+                            int var2_bytecount=code_variables.get(operands[OP2])[1];
+                            if(var1_bytecount<var2_bytecount) throw new Exception("The variable '"+operands[OP2]+"' is bigger than the variable '"+operands[OP1]+"'");
+                            for(int i=0;i<var1_bytecount;i++)
+                                if(i<var2_bytecount) insert_machinecode(Instset.MOM.ordinal(),code_variables.get(operands[OP1])[0]+i,code_variables.get(operands[OP2])[0]+i,0);
+                                else insert_machinecode(Instset.CRW.ordinal(),code_variables.get(operands[OP1])[0]+i,0,0);
+                            code_lineoffsets.put(code_currline+1,var1_bytecount);
+                        }
                         else
                         if(op_types[0].equals("M") && op_types[1].equals("V")) // M V
                             insert_machinecode(Instset.MOM.ordinal(),extractNumber(operands[OP1]),code_variables.get(operands[OP2])[0],0);
