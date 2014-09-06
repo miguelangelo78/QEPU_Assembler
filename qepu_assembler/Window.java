@@ -23,22 +23,15 @@ public class Window extends javax.swing.JFrame {
         statusLbl = new javax.swing.JLabel();
         clearoutputBtn = new javax.swing.JButton();
         jPanel1 = new javax.swing.JPanel();
-        jSplitPane1 = new javax.swing.JSplitPane();
-        jPanel3 = new javax.swing.JPanel();
-        jPanel6 = new javax.swing.JPanel();
-        jPanel4 = new javax.swing.JPanel();
-        jSplitPane2 = new javax.swing.JSplitPane();
-        jScrollPane1 = new javax.swing.JScrollPane();
-        assemblycodeText = new javax.swing.JTextArea();
-        jScrollPane3 = new javax.swing.JScrollPane();
-        assembloutputText = new javax.swing.JTextArea();
-        jScrollPane2 = new javax.swing.JScrollPane();
-        jTextArea1 = new javax.swing.JTextArea();
         jPanel2 = new javax.swing.JPanel();
         assembleBtn = new javax.swing.JButton();
         newBtn = new javax.swing.JButton();
         openBtn = new javax.swing.JButton();
         saveBtn = new javax.swing.JButton();
+        jScrollPane1 = new javax.swing.JScrollPane();
+        assemblycodeText = new javax.swing.JTextArea();
+        jScrollPane2 = new javax.swing.JScrollPane();
+        jTextArea1 = new javax.swing.JTextArea();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -71,88 +64,6 @@ public class Window extends javax.swing.JFrame {
                 .addComponent(clearoutputBtn))
         );
 
-        jPanel3.setMaximumSize(new java.awt.Dimension(50, 32767));
-        jPanel3.setPreferredSize(new java.awt.Dimension(50, 335));
-        jPanel3.setRequestFocusEnabled(false);
-
-        javax.swing.GroupLayout jPanel6Layout = new javax.swing.GroupLayout(jPanel6);
-        jPanel6.setLayout(jPanel6Layout);
-        jPanel6Layout.setHorizontalGroup(
-            jPanel6Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 59, Short.MAX_VALUE)
-        );
-        jPanel6Layout.setVerticalGroup(
-            jPanel6Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 414, Short.MAX_VALUE)
-        );
-
-        javax.swing.GroupLayout jPanel3Layout = new javax.swing.GroupLayout(jPanel3);
-        jPanel3.setLayout(jPanel3Layout);
-        jPanel3Layout.setHorizontalGroup(
-            jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel3Layout.createSequentialGroup()
-                .addContainerGap()
-                .addComponent(jPanel6, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap())
-        );
-        jPanel3Layout.setVerticalGroup(
-            jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(jPanel3Layout.createSequentialGroup()
-                .addContainerGap()
-                .addComponent(jPanel6, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addContainerGap())
-        );
-
-        jSplitPane1.setLeftComponent(jPanel3);
-
-        jSplitPane2.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
-
-        jScrollPane1.setPreferredSize(new java.awt.Dimension(506, 156));
-
-        assemblycodeText.setColumns(20);
-        assemblycodeText.setFont(new java.awt.Font("Consolas", 0, 14)); // NOI18N
-        assemblycodeText.setRows(5);
-        assemblycodeText.setTabSize(2);
-        jScrollPane1.setViewportView(assemblycodeText);
-
-        jSplitPane2.setTopComponent(jScrollPane1);
-
-        assembloutputText.setEditable(false);
-        assembloutputText.setColumns(20);
-        assembloutputText.setRows(5);
-        jScrollPane3.setViewportView(assembloutputText);
-
-        jSplitPane2.setBottomComponent(jScrollPane3);
-
-        jTextArea1.setEditable(false);
-        jTextArea1.setColumns(20);
-        jTextArea1.setFont(new java.awt.Font("Consolas", 1, 13)); // NOI18N
-        jTextArea1.setRows(5);
-        jTextArea1.setText("MOQ,MOR,MOM,STR,LOD,CRW,CQW, // DATA MOVEMENT\n\nPOP,PSH, // MEMORY STACK MOVEMENT\n\nCMT,CMP, // CONSTANT QUBIT DATA MOVEMENT\n\nCME, // COMPARE\n\nSEF,GEF, // SET AND GET FLAGS\n\nBES,BLW,BLE,BEQ,BGE,BGR,BDI,BZE,BNZ, // BRANCHING WITH OR WITHOUT JUMP STACK\n\nCALL,RET,JMP, // UNCONDICIONAL JUMPS WITH AND WITHOUT JUMP STACK\n\nADD,SUB,MUL,DIV,AND,OR,NOR,XOR,NAN,NOT,SHL,SHR, // ARITHMETIC AND LOGIC FUNCTIONS\n\nINT, // SYSTEM CALLS\n\nDLY, // DELAY\n\nNOP, // DOES NOTHING (GOOD FOR DELAYS)\n\nHLT, // FINISHES THE PROGRAM\n\nX,Y,Z,H,S,T,ROX,ROY,ROZ, // 1 QUBIT GATE QUANTUM FUNCTION\n\nCNO,CSI,SWA,INC,DEC,SWQ,SWI, // 2 QUBIT GATE QUANTUM FUNCTION\n\nCSW,TOF,DEU // 3 QUBIT GATE QUANTUM FUNCTION");
-        jScrollPane2.setViewportView(jTextArea1);
-
-        javax.swing.GroupLayout jPanel4Layout = new javax.swing.GroupLayout(jPanel4);
-        jPanel4.setLayout(jPanel4Layout);
-        jPanel4Layout.setHorizontalGroup(
-            jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(jPanel4Layout.createSequentialGroup()
-                .addContainerGap()
-                .addComponent(jSplitPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 385, Short.MAX_VALUE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 239, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap())
-        );
-        jPanel4Layout.setVerticalGroup(
-            jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(jPanel4Layout.createSequentialGroup()
-                .addContainerGap()
-                .addGroup(jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jScrollPane2)
-                    .addComponent(jSplitPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 425, Short.MAX_VALUE)))
-        );
-
-        jSplitPane1.setRightComponent(jPanel4);
-
         assembleBtn.setText("Assemble");
         assembleBtn.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -178,7 +89,7 @@ public class Window extends javax.swing.JFrame {
                 .addComponent(saveBtn, javax.swing.GroupLayout.PREFERRED_SIZE, 66, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(assembleBtn, javax.swing.GroupLayout.PREFERRED_SIZE, 96, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addContainerGap(169, Short.MAX_VALUE))
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -189,19 +100,43 @@ public class Window extends javax.swing.JFrame {
                 .addComponent(saveBtn))
         );
 
+        jScrollPane1.setPreferredSize(new java.awt.Dimension(506, 156));
+
+        assemblycodeText.setColumns(20);
+        assemblycodeText.setFont(new java.awt.Font("Consolas", 0, 12)); // NOI18N
+        assemblycodeText.setRows(5);
+        assemblycodeText.setTabSize(2);
+        assemblycodeText.setText("@DATA_SECTION\n\nJMP @MAIN_SECTION\n@FUNCTION_SECTION\n\n@MAIN_SECTION\n\n@END_SECTION");
+        jScrollPane1.setViewportView(assemblycodeText);
+
+        jTextArea1.setEditable(false);
+        jTextArea1.setBackground(javax.swing.UIManager.getDefaults().getColor("Button.background"));
+        jTextArea1.setColumns(20);
+        jTextArea1.setFont(new java.awt.Font("Consolas", 1, 13)); // NOI18N
+        jTextArea1.setRows(5);
+        jTextArea1.setText("MOQ,MOR,MOM,STR,LOD,CRW,CQW, // DATA MOVEMENT\n\nPOP,PSH, // MEMORY STACK MOVEMENT\n\nCMT,CMP, // CONSTANT QUBIT DATA MOVEMENT\n\nCME, // COMPARE\n\nSEF,GEF, // SET AND GET FLAGS\n\nBES,BLW,BLE,BEQ,BGE,BGR,BDI,BZE,BNZ, // BRANCHING WITH OR WITHOUT JUMP STACK\n\nCALL,RET,JMP, // UNCONDICIONAL JUMPS WITH AND WITHOUT JUMP STACK\n\nADD,SUB,MUL,DIV,AND,OR,NOR,XOR,NAN,NOT,SHL,SHR, // ARITHMETIC AND LOGIC FUNCTIONS\n\nINT, // SYSTEM CALLS\n\nDLY, // DELAY\n\nNOP, // DOES NOTHING (GOOD FOR DELAYS)\n\nHLT, // FINISHES THE PROGRAM\n\nX,Y,Z,H,S,T,ROX,ROY,ROZ, // 1 QUBIT GATE QUANTUM FUNCTION\n\nCNO,CSI,SWA,INC,DEC,SWQ,SWI, // 2 QUBIT GATE QUANTUM FUNCTION\n\nCSW,TOF,DEU // 3 QUBIT GATE QUANTUM FUNCTION");
+        jScrollPane2.setViewportView(jTextArea1);
+
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
         jPanel1Layout.setHorizontalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jPanel2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-            .addComponent(jSplitPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 736, Short.MAX_VALUE)
+            .addGroup(jPanel1Layout.createSequentialGroup()
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(jPanel2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 0, Short.MAX_VALUE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 239, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addContainerGap())
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
+            .addGroup(jPanel1Layout.createSequentialGroup()
                 .addComponent(jPanel2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jSplitPane1)
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(jScrollPane2)
+                    .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 468, Short.MAX_VALUE))
                 .addContainerGap())
         );
 
@@ -231,18 +166,11 @@ public class Window extends javax.swing.JFrame {
     
 
     private void assembleBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_assembleBtnActionPerformed
-        int assemble_status=qassembler.assemble(assemblycodeText.getText());
-        
-        String msg;
-        if(assemble_status==0) msg="Your code has been successfully assembled ("+assemblycodeText.getLineCount()+" lines)";
-        else msg="There was an error in the assemble in the line: "+assemble_status;
-        
-        assembloutputText.append(msg+"\n");
-        JOptionPane.showMessageDialog(null, msg);        
+        JOptionPane.showMessageDialog(null, qassembler.assemble(assemblycodeText.getText()));        
     }//GEN-LAST:event_assembleBtnActionPerformed
 
     private void clearoutputBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_clearoutputBtnActionPerformed
-        assembloutputText.setText("");
+        
     }//GEN-LAST:event_clearoutputBtnActionPerformed
 
     public static void main(String args[]) throws ClassNotFoundException {
@@ -282,20 +210,13 @@ public class Window extends javax.swing.JFrame {
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton assembleBtn;
-    private javax.swing.JTextArea assembloutputText;
     private javax.swing.JTextArea assemblycodeText;
     private javax.swing.JButton clearoutputBtn;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JPanel jPanel2;
-    private javax.swing.JPanel jPanel3;
-    private javax.swing.JPanel jPanel4;
     private javax.swing.JPanel jPanel5;
-    private javax.swing.JPanel jPanel6;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JScrollPane jScrollPane2;
-    private javax.swing.JScrollPane jScrollPane3;
-    private javax.swing.JSplitPane jSplitPane1;
-    private javax.swing.JSplitPane jSplitPane2;
     private javax.swing.JTextArea jTextArea1;
     private javax.swing.JButton newBtn;
     private javax.swing.JButton openBtn;

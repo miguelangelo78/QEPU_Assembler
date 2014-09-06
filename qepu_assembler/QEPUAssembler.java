@@ -181,7 +181,7 @@ public final class QEPUAssembler {
         return new_jump_address-1;
     }
     
-    public int assemble(String assembly){
+    public String assemble(String assembly){
         create_file();
         
         code_currline=0;
@@ -190,7 +190,7 @@ public final class QEPUAssembler {
         code_variables=new HashMap<String,int[]>();
         code_variables_address_start=0;
         
-        int success=0;
+        String success="";
         try{
             //Read all lines and iterate through them:
             ArrayList<String> codelines=new ArrayList<>();
@@ -738,13 +738,16 @@ public final class QEPUAssembler {
             }
         }catch(Exception e){
             code_currline++;
-            success=code_currline;
-            System.err.println("There was an error in the line: "+code_currline+". "+e.getMessage());
+            success="There was an error in the line: "+code_currline+". "+e.getMessage();
+            System.err.println(success);
             e.printStackTrace();
+            close_file();
+            return success;
         }
         insert_machinecode(Instset.HLT.ordinal(), 0, 0, 0);
         insert_machinecode(Instset.NOP.ordinal(), 0, 0, 0);
         close_file();
+        success="Your code has been successfully assembled ("+code_currline+" lines)";
         return success;
     }
 }
