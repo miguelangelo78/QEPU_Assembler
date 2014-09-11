@@ -181,6 +181,18 @@ public final class QEPUAssembler {
         return new_jump_address-1;
     }
     
+    public String fix_str_newlines(String src){
+        //FIX NEWLINES:
+        StringBuilder strBldr=new StringBuilder(src);
+        while(src.contains("\\n")){
+            int newline_index=src.indexOf("\\n");
+            strBldr.setCharAt(src.indexOf("\\n"), (char)13);
+            strBldr.deleteCharAt(newline_index+1);
+            src=strBldr.toString();
+        }
+        return src;
+    }
+    
     public String assemble(String assembly){
         create_file();
         
@@ -248,7 +260,7 @@ public final class QEPUAssembler {
                             code_lineoffsets.put(code_currline+1,var_bytelength);
                         }else
                         if(op_types[1].equals("S")){ // $VAR=STRING
-                            operands[OP2]+=STRING_TERMINATOR;
+                            operands[OP2]=fix_str_newlines(operands[OP2])+STRING_TERMINATOR;
                             if(var_bytelength<operands[OP2].length()) throw new Exception("The variable's size is too small for the string");
                             for(int i=0;i<operands[OP2].length();i++) // WRITE THE CONTENT
                                 insert_machinecode(Instset.CRW.ordinal(),code_variables_address_start+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
@@ -280,7 +292,7 @@ public final class QEPUAssembler {
                         // TODO: DECIDE WHETHER IT IS A LOD, STR, MOR, MOM, CMT, CMP, CRW OR CQW
                         if(op_types[0].equals("V") && op_types[1].equals("S")){ // V S -> INCORRECT (RESERVE MORE SPACE FOR THE VARIABLES)
                             if(!code_variables.containsKey(operands[OP1])) throw new Exception("The variable '"+operands[OP1]+"' was not declared");
-                            operands[OP2]+=STRING_TERMINATOR;
+                            operands[OP2]=fix_str_newlines(operands[OP2])+STRING_TERMINATOR;
                             int var_bytecount=code_variables.get(operands[OP1])[1];
                             if(var_bytecount<operands[OP2].length()) throw new Exception("The string is too large for the variable '"+operands[OP1]+"'");
                             for(int i=0;i<var_bytecount;i++)
@@ -351,14 +363,14 @@ public final class QEPUAssembler {
                             else insert_machinecode(Instset.CQW.ordinal(), extractNumber(operands[OP1]),extractNumber(""+((int)operands[OP2].charAt(0))), 0);
                         else
                         if(op_types[0].equals("M") && op_types[1].equals("S")){ // M S
-                            operands[OP2]+=STRING_TERMINATOR;
+                            operands[OP2]=fix_str_newlines(operands[OP2])+STRING_TERMINATOR;
                             for(int i=0;i<operands[OP2].length();i++)
                                 insert_machinecode(Instset.CRW.ordinal(),extractNumber(operands[OP1])+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
                             code_lineoffsets.put(code_currline+1,operands[OP2].length());
                         }
                         else
                         if(op_types[0].equals("R") && op_types[1].equals("S")){ // R S
-                            operands[OP2]+=STRING_TERMINATOR;
+                            operands[OP2]=fix_str_newlines(operands[OP2])+STRING_TERMINATOR;
                             for(int i=0;i<operands[OP2].length();i++)
                                 insert_machinecode(Instset.CQW.ordinal(),extractNumber(operands[OP1])+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
                             code_lineoffsets.put(code_currline+1,operands[OP2].length());
