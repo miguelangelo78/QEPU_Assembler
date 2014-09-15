@@ -1,7 +1,10 @@
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -152,6 +155,7 @@ public final class QEPUAssembler {
             Logger.getLogger(QEPUAssembler.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
+    
     public void close_file(){
         try {
             mc_fos.close();
@@ -159,6 +163,7 @@ public final class QEPUAssembler {
             Logger.getLogger(QEPUAssembler.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
+    
     public String getFilename(String filepath){
     	Matcher fileNameMatcher=Pattern.compile("(?:.+\\\\)?(.+?)\\.(?:"+FILESOURCE_FORMAT+"|"+FILEBINARY_FORMAT+")").matcher(filepath);
     	if(fileNameMatcher.find()) return fileNameMatcher.group(1);
@@ -261,16 +266,28 @@ public final class QEPUAssembler {
     	return assembly;
     }
     
+    public void create_linkedfile(String linked_assembly){
+    	try {
+			BufferedWriter la_writer=new BufferedWriter(new FileWriter(new File(mc_fullpath.replace(getFilename(mc_fullpath)+".bin", getFilename(mc_fullpath)+"_linked.qep"))));
+			la_writer.write(linked_assembly);
+			la_writer.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+    }
+    
     public String assemble(String assembly){ 
         String success="";
         try{	
-        	Matcher line_count_match=Pattern.compile("^[^get].+?$",Pattern.MULTILINE).matcher(assembly);
+        	Matcher line_count_match=Pattern.compile("$",Pattern.MULTILINE).matcher(assembly);
         	while(line_count_match.find()) file_linecount++;
+        	file_linecount--;
         	
         	assembly=handle_including(assembly);
-        	
-        	System.out.println("Current file: "+file_linecount+" lines, Other files: "+include_linecount_offset+" lines, Total: "+(file_linecount+include_linecount_offset));
-        	System.out.println("Code:\n"+assembly);
+        	create_linkedfile(assembly);
+        	// SHOW LINKED CODE:
+        	//System.out.println("Current file: "+file_linecount+" lines, Other files: "+include_linecount_offset+" lines, Total: "+(file_linecount+include_linecount_offset));
+        	//System.out.println("Code:\n"+assembly);
         	
             //Read all lines and iterate through them:
             ArrayList<String> codelines=new ArrayList<>();

@@ -4,8 +4,7 @@ import javax.swing.JOptionPane;
 
 public class qassembler {
 	
-	private static final String FILESOURCE_FORMAT=".qep",
-						 		FILEBINARY_FORMAT=".bin";
+	private static final String FILESOURCE_FORMAT=".qep",FILEBINARY_FORMAT=".bin";
 	
 	public static void messagebox(String title,String msg,int message_type,boolean close){
 		JOptionPane.showMessageDialog(null,msg,title,message_type);
