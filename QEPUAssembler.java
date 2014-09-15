@@ -225,7 +225,7 @@ public final class QEPUAssembler {
         	String include_code="";
     		String line="";
     		int include_start=include_linecount_offset;
-    		BufferedReader br=new BufferedReader(new FileReader(include_name));
+    		BufferedReader br=new BufferedReader(new FileReader(mc_fullpath.replace(getFilename(mc_fullpath)+"."+FILEBINARY_FORMAT,include_name)));
     		while ((line= br.readLine()) != null){include_code+=line+"\n";include_code_linecount++;include_linecount_offset++;}
     		code_lineoffsets.put(include_start, include_linecount_offset-include_start); // SET LINE OFFSETS FOR THIS INCLUDE FILE
     		br.close();

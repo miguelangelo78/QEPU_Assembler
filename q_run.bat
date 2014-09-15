@@ -1,0 +1,1 @@
+@java -jar qassembler.jar %1
