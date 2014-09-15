@@ -1,7 +1,7 @@
-package qepu_assembler;
-
+import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -14,22 +14,26 @@ import java.util.regex.Pattern;
 
 public final class QEPUAssembler {
     // TYPES OF OPERANDS:
-    private static final int FUNC=0,OP1=1,OP2=2,OP3=3,
-                             REGISTER=4,QUBIT=5,MEMORY=6,FLAG=7,CONSTANT=8,VARIABLE=9;
-    private static final int INSTR_WIDTH=13,MAX_OPERAND_COUNT=3;
+    @SuppressWarnings("unused")
+	private static final int FUNC=0,OP1=1,OP2=2,OP3=3,
+                             REGISTER=4,QUBIT=5,MEMORY=6,FLAG=7,CONSTANT=8,VARIABLE=9,INCLUDE=10;
+    @SuppressWarnings("unused")
+	private static final int INSTR_WIDTH=13,MAX_OPERAND_COUNT=3;
     private static final char STRING_TERMINATOR='$',LABEL_TYPE='@',VAR_TYPE='$';
+    
+    private static final String FILESOURCE_FORMAT="qep",
+	 							FILEBINARY_FORMAT="bin";
     
     private int code_currline;
     private Map<Integer,Integer> code_lineoffsets;
     private Map<String,Integer> code_labels;
     private Map<String,int[]> code_variables;
     private int code_variables_address_start;
+    private int file_linecount,include_linecount_offset;
+    private ArrayList<Object[]> include_files;
     
     private FileOutputStream mc_fos;
-    private final String mc_filename;
-    private final String mc_filepath;
-    private final String mc_fileformat;
-    private final String mc_fullpath;
+    private String mc_fullpath;
     
     private enum Instset{
         NULL, // BECAUSE THE ENUMS START AT 1 AND NOT 0
@@ -49,7 +53,23 @@ public final class QEPUAssembler {
         CNO,CSI,SWA,INC,DEC,SWQ,SWI, // 2 QUBIT GATE QUANTUM FUNCTION
         CSW,TOF,DEU // 3 QUBIT GATE QUANTUM FUNCTION
     }
-    private HashMap<String,int[]> dict=new HashMap<String,int[]>(){{
+    
+    public QEPUAssembler(String mc_fullpath){
+    	this.mc_fullpath=mc_fullpath;
+    	file_linecount=0;
+    	include_linecount_offset=0;
+    	include_files=new ArrayList<Object[]>();
+    	
+    	create_file();
+        code_currline=0;
+        code_lineoffsets=new HashMap<Integer,Integer>();
+        code_labels=new HashMap<String,Integer>();
+        code_variables=new HashMap<String,int[]>();
+        code_variables_address_start=0;
+    }
+    
+    @SuppressWarnings("serial")
+	private HashMap<String,int[]> dict=new HashMap<String,int[]>(){{
         //INSTRUCTION SET AND OPERAND TYPES:
         put("",new int[]{FUNC,0}); // THIS IS AN EMPTY LINE AND NEEDS TO BE IGNORED
         put("MOV",new int[]{FUNC,2});
@@ -120,16 +140,11 @@ public final class QEPUAssembler {
         put("F",new int[]{FLAG,0});
         put("@",new int[]{FUNC,1}); // LABELS
         put("$",new int[]{FUNC,3}); // VARIABLES ($varname content size)
-        put("K",new int[]{CONSTANT,0}); //MAYBE WILL USE THIS*/
+        put("K",new int[]{CONSTANT,0}); // MAYBE WILL USE THIS*/
+        put("GET",new int[]{INCLUDE,1}); // IMPORT LIBRARIES
     }};
     
-    public QEPUAssembler(){
-        mc_filepath="C:\\Users\\Miguel\\Desktop\\";
-        mc_filename="test";
-        mc_fileformat="bin";
-        mc_fullpath=mc_filepath+mc_filename+"."+mc_fileformat;
-    }
-    
+   
     public void create_file(){
         try {
             mc_fos=new FileOutputStream(mc_fullpath);
@@ -143,6 +158,11 @@ public final class QEPUAssembler {
         } catch (IOException ex) {
             Logger.getLogger(QEPUAssembler.class.getName()).log(Level.SEVERE, null, ex);
         }
+    }
+    public String getFilename(String filepath){
+    	Matcher fileNameMatcher=Pattern.compile("(?:.+\\\\)?(.+?)\\.(?:"+FILESOURCE_FORMAT+"|"+FILEBINARY_FORMAT+")").matcher(filepath);
+    	if(fileNameMatcher.find()) return fileNameMatcher.group(1);
+    	return "NULL";
     }
     
     public void insert_machinecode(int func,int op1,int op2,int op3){
@@ -178,7 +198,8 @@ public final class QEPUAssembler {
     public int getJumpOffset(int jump_address){
         int new_jump_address=jump_address;
         for(Integer key:code_lineoffsets.keySet()) if(jump_address>key) new_jump_address+=code_lineoffsets.get(key)-1;
-        return new_jump_address-1;
+        new_jump_address--;
+        return new_jump_address;
     }
     
     public String fix_str_newlines(String src){
@@ -186,24 +207,71 @@ public final class QEPUAssembler {
         StringBuilder strBldr=new StringBuilder(src);
         while(src.contains("\\n")){
             int newline_index=src.indexOf("\\n");
-            strBldr.setCharAt(src.indexOf("\\n"), (char)13);
+            strBldr.setCharAt(src.indexOf("\\n"), (char)10);
             strBldr.deleteCharAt(newline_index+1);
             src=strBldr.toString();
         }
         return src;
     }
     
-    public String assemble(String assembly){
-        create_file();
-        
-        code_currline=0;
-        code_lineoffsets=new HashMap<Integer,Integer>();
-        code_labels=new HashMap<String,Integer>();
-        code_variables=new HashMap<String,int[]>();
-        code_variables_address_start=0;
-        
+    public boolean include_file_isincluded(String include_filename){
+    	for(int i=0;i<include_files.size();i++) if(include_files.get(i)[0].equals(include_filename)) return true;
+    	return false;
+    }
+    
+    public void include_file(String include_name){
+    	try {
+    		int include_code_linecount=0;
+        	String include_code="";
+    		String line="";
+    		int include_start=include_linecount_offset;
+    		BufferedReader br=new BufferedReader(new FileReader(include_name));
+    		while ((line= br.readLine()) != null){include_code+=line+"\n";include_code_linecount++;include_linecount_offset++;}
+    		code_lineoffsets.put(include_start, include_linecount_offset-include_start); // SET LINE OFFSETS FOR THIS INCLUDE FILE
+    		br.close();
+			include_files.add(new Object[]{include_name,include_code,include_code_linecount});
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+    }
+    
+    public String handle_including(String assembly){
+    	//HANDLE INCLUDE FILES - BEGIN
+    	include_files.add(new Object[]{getFilename(mc_fullpath)+FILESOURCE_FORMAT,"",0});
+    	boolean including_done=false;
+    	while(!including_done){
+    		Matcher include_match=Pattern.compile("^get (.+?"+FILESOURCE_FORMAT+")",Pattern.MULTILINE).matcher(assembly);
+    		int files_included=0;
+        	while(include_match.find()){
+        		String include_filename=include_match.group(1);
+        		if(include_file_isincluded(include_filename) && include_filename.equals(getFilename(mc_fullpath)+"."+FILESOURCE_FORMAT)){
+        			System.err.println("Cannot include the file itself ("+include_filename+")! Ignoring this line.");
+        			System.exit(-1);
+        		}
+        		else
+        			if(!include_file_isincluded(include_filename)) include_file(include_filename);
+	        		else System.err.println("The file '"+include_filename+"' was previously included. Ignoring this line.");
+        		assembly=assembly.replace(include_match.group(0)+"\n","");
+        		files_included++;
+        	}
+        	if(files_included==0){including_done=true;break;}
+        	for(int i=include_files.size()-1;i>=0;i--) assembly=(String)(include_files.get(i)[1])+assembly; // INSERT INCLUDE FILES IN THE BEGINNING OF THE MAIN FILE
+        }
+    	//HANDLE INCLUDE FILES - END
+    	return assembly;
+    }
+    
+    public String assemble(String assembly){ 
         String success="";
-        try{
+        try{	
+        	Matcher line_count_match=Pattern.compile("^[^get].+?$",Pattern.MULTILINE).matcher(assembly);
+        	while(line_count_match.find()) file_linecount++;
+        	
+        	assembly=handle_including(assembly);
+        	
+        	System.out.println("Current file: "+file_linecount+" lines, Other files: "+include_linecount_offset+" lines, Total: "+(file_linecount+include_linecount_offset));
+        	System.out.println("Code:\n"+assembly);
+        	
             //Read all lines and iterate through them:
             ArrayList<String> codelines=new ArrayList<>();
             int line_ctr=0;
@@ -215,7 +283,7 @@ public final class QEPUAssembler {
             }
             
             //Translate all lines to machine code:
-            Pattern line_patt=Pattern.compile("^(?:\\$|@|#)|(?:\".+?\")|[a-z|A-Z|\\d|_|'|$|@|#]+?(?: |'|\"|\n|$)"); // OPERAND PATTERN
+            Pattern line_patt=Pattern.compile("^(?:\\$|@|#)|(?:\".+?\")|[a-z|A-Z|\\d|_|'|$|@|#]+?(?:\\."+FILESOURCE_FORMAT+"| |'|\"|\n|$)"); // OPERAND PATTERN
             for(code_currline=0;code_currline<codelines.size();code_currline++){
                 //FETCH FUNC,OP1,OP2 AND OP3:
                 String currline=codelines.get(code_currline);
@@ -230,6 +298,7 @@ public final class QEPUAssembler {
                 }
                 
                 String function=operands[FUNC].toUpperCase();
+                
                 if(!dict.containsKey(function) || dict.get(function)[0]!=FUNC || dict.get(function)[1]!=operands.length-1) // DOES THIS FUNCTION EXIST IN THE DICTIONARY?
                     throw new Exception("The instruction is unrecognizable");
                 
@@ -289,7 +358,7 @@ public final class QEPUAssembler {
                         insert_machinecode(Instset.NOP.ordinal(), 0, 0, 0);
                         break;
                     case "MOV":
-                        // TODO: DECIDE WHETHER IT IS A LOD, STR, MOR, MOM, CMT, CMP, CRW OR CQW
+                        // DECIDE WHETHER IT IS A LOD, STR, MOR, MOM, CMT, CMP, CRW OR CQW
                         if(op_types[0].equals("V") && op_types[1].equals("S")){ // V S -> INCORRECT (RESERVE MORE SPACE FOR THE VARIABLES)
                             if(!code_variables.containsKey(operands[OP1])) throw new Exception("The variable '"+operands[OP1]+"' was not declared");
                             operands[OP2]=fix_str_newlines(operands[OP2])+STRING_TERMINATOR;
@@ -750,7 +819,7 @@ public final class QEPUAssembler {
             }
         }catch(Exception e){
             code_currline++;
-            success="There was an error in the line: "+code_currline+". "+e.getMessage();
+            success="There was an error in the line: "+(code_currline)+". "+e.getMessage();
             System.err.println(success);
             e.printStackTrace();
             close_file();
@@ -759,7 +828,7 @@ public final class QEPUAssembler {
         insert_machinecode(Instset.HLT.ordinal(), 0, 0, 0);
         insert_machinecode(Instset.NOP.ordinal(), 0, 0, 0);
         close_file();
-        success="Your code has been successfully assembled ("+code_currline+" lines)";
+        success="Your code has been successfully assembled ("+file_linecount+" lines)";
         return success;
     }
 }
