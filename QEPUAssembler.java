@@ -19,11 +19,9 @@ import java.util.regex.Pattern;
 public final class QEPUAssembler {
 	// GLOBAL VARIABLES:
     // TYPES OF OPERANDS:
-    @SuppressWarnings("unused")
-	private static final int FUNC=0,OP1=1,OP2=2,OP3=3,
-                             REGISTER=4,QUBIT=5,MEMORY=6,FLAG=7,CONSTANT=8,VARIABLE=9,INCLUDE=10;
-    @SuppressWarnings("unused")
-	private static final int INSTR_WIDTH=13,MAX_OPERAND_COUNT=3,BINARY_FILE_EOF=0xFF;
+    private static final int FUNC=0,OP1=1,OP2=2,OP3=3,
+                             REGISTER=4,QUBIT=5,MEMORY=6,FLAG=7,CONSTANT=8;
+    private static final int MAX_OPERAND_COUNT=3,BINARY_FILE_EOF=0xFF;
     private static final char STRING_TERMINATOR='$',LABEL_TYPE='@',VAR_TYPE='$';
     
     private static final String FILESOURCE_FORMAT="qep",
@@ -134,7 +132,6 @@ public final class QEPUAssembler {
         put("@",new int[]{FUNC,1}); // LABELS
         put("$",new int[]{FUNC,3}); // VARIABLES ($varname content size)
         put("K",new int[]{CONSTANT,0}); // MAYBE WILL USE THIS*/
-        put("GET",new int[]{INCLUDE,1}); // IMPORT LIBRARIES
     }};    
    
     //FUNCTIONS:
@@ -266,6 +263,7 @@ public final class QEPUAssembler {
     
     public void include_file(String include_name){
     	try {
+    		System.out.println("Linking '"+include_name+"'...");
     		int include_code_linecount=0;
         	String include_code="";
     		String line="";
@@ -299,7 +297,7 @@ public final class QEPUAssembler {
         	}
         	if(files_included==0){including_done=true;break;}
         	for(int i=include_files.size()-1;i>=0;i--)
-        		assembly="#SOURCE BEGIN:"+include_files.get(i)[0]+"\n"+(String)(include_files.get(i)[1])+"#SOURCE END: "+include_files.get(i)[0]+assembly; // INSERT INCLUDE FILES IN THE BEGINNING OF THE MAIN FILE
+        		assembly="#SOURCE BEGIN:"+include_files.get(i)[0]+"\n"+(String)(include_files.get(i)[1])+"#SOURCE END: "+include_files.get(i)[0]+"\n"+assembly; // INSERT INCLUDE FILES IN THE BEGINNING OF THE MAIN FILE
         }
     	//HANDLE INCLUDE FILES - END
     	if(include_files.size()>0){
@@ -324,7 +322,30 @@ public final class QEPUAssembler {
     	}
     }
     
-    public String assemble(String assembly){ 
+    public String getErrorMessage(int original_errorline){
+    	String error_file="";
+        int error_line=original_errorline;
+        int included_linesaccumulated=0;
+        if(include_files.size()>0) included_linesaccumulated++;
+        for(int i=0;i<include_files.size();i++){
+        	included_linesaccumulated+=(Integer)include_files.get(i)[2]+2;
+        	if(code_currline<included_linesaccumulated){ 
+        		included_linesaccumulated++;
+        		error_file=(String)include_files.get(i)[0];
+        		error_line-=2;
+        		break;
+        	}
+        	error_line-=(Integer)include_files.get(i)[2]+2;
+        }
+        String error_message="There was an error in ";
+        if(include_files.size()>0 && code_currline<included_linesaccumulated) error_message+="the file: '"+error_file+"' in the line: "+error_line;
+        else error_message+=" the line: "+(code_currline-included_linesaccumulated);
+        error_message+=". ";
+        return error_message;
+    }
+    
+    public String assemble(String assembly){
+    	System.out.println("Assembling "+mc_fullpath+"...");
         String success="ERROR: UNASSEMBLED";
         try{	
         	set_file_linecount(assembly);
@@ -877,7 +898,7 @@ public final class QEPUAssembler {
             }
         }catch(Exception e){
             code_currline++;
-            success="There was an error in the line: "+(code_currline-(include_files.size()-1))+". "+e.getMessage();
+            success=getErrorMessage(code_currline)+e.getMessage();
             System.err.println(success);
             e.printStackTrace();
             return success;
@@ -885,16 +906,7 @@ public final class QEPUAssembler {
         insert_machinecode(Instset.HLT.ordinal(), 0, 0, 0);
         create_binaryfile();
         success="Your code has been successfully assembled ("+file_linecount+" lines)";
+        System.out.println("Done!");
         return success;
     }
-    /*
-    900 LINES, LEL
-    900 LINES, LEL
-    900 LINES, LEL
-    900 LINES, LEL
-    900 LINES, LEL
-    900 LINES, LEL
-    900 LINES, LEL
-	900 LINES, LEL
-	*/
 }
