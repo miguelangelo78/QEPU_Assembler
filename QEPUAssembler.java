@@ -17,12 +17,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class QEPUAssembler {
+	// GLOBAL VARIABLES:
     // TYPES OF OPERANDS:
     @SuppressWarnings("unused")
 	private static final int FUNC=0,OP1=1,OP2=2,OP3=3,
                              REGISTER=4,QUBIT=5,MEMORY=6,FLAG=7,CONSTANT=8,VARIABLE=9,INCLUDE=10;
     @SuppressWarnings("unused")
-	private static final int INSTR_WIDTH=13,MAX_OPERAND_COUNT=3;
+	private static final int INSTR_WIDTH=13,MAX_OPERAND_COUNT=3,BINARY_FILE_EOF=0xFF;
     private static final char STRING_TERMINATOR='$',LABEL_TYPE='@',VAR_TYPE='$';
     
     private static final String FILESOURCE_FORMAT="qep",
@@ -34,7 +35,7 @@ public final class QEPUAssembler {
     private Map<String,Integer> code_labels;
     private Map<String,int[]> code_variables;
     private int code_variables_address_start;
-    private int file_linecount,include_linecount_offset;
+    private int file_linecount;
     private ArrayList<Object[]> include_files;
     private ArrayList<Integer> machinecode;
     
@@ -58,20 +59,6 @@ public final class QEPUAssembler {
         X,Y,Z,H,S,T,ROX,ROY,ROZ, // 1 QUBIT GATE QUANTUM FUNCTION
         CNO,CSI,SWA,INC,DEC,SWQ,SWI, // 2 QUBIT GATE QUANTUM FUNCTION
         CSW,TOF,DEU // 3 QUBIT GATE QUANTUM FUNCTION
-    }
-    
-    public QEPUAssembler(String mc_fullpath){
-    	this.mc_fullpath=mc_fullpath;
-    	file_linecount=0;
-    	include_linecount_offset=0;
-    	include_files=new ArrayList<Object[]>();
-    	machinecode=new ArrayList<Integer>();
-    	
-    	code_currline=0;
-        code_lineoffsets=new HashMap<Integer,Integer>();
-        code_labels=new HashMap<String,Integer>();
-        code_variables=new HashMap<String,int[]>();
-        code_variables_address_start=0;
     }
     
     @SuppressWarnings("serial")
@@ -151,6 +138,24 @@ public final class QEPUAssembler {
     }};    
    
     //FUNCTIONS:
+    public QEPUAssembler(String mc_fullpath){
+    	this.mc_fullpath=mc_fullpath;
+    	file_linecount=0;
+    	include_files=new ArrayList<Object[]>();
+    	machinecode=new ArrayList<Integer>();
+    	
+    	code_currline=0;
+        code_lineoffsets=new HashMap<Integer,Integer>();
+        code_labels=new HashMap<String,Integer>();
+        code_variables=new HashMap<String,int[]>();
+        code_variables_address_start=0;
+    }
+    
+    public void set_file_linecount(String assembly){
+    	Matcher line_count_match=Pattern.compile("$",Pattern.MULTILINE).matcher(assembly);
+    	while(line_count_match.find()) file_linecount++; file_linecount--;
+    }
+    
     public void create_file(){
     	try {
             mc_fos=new FileOutputStream(mc_fullpath);
@@ -173,12 +178,19 @@ public final class QEPUAssembler {
     	return "NULL";
     }
     
-    public void insert_machinecode(int func,int op1,int op2,int op3){
-    	machinecode.addAll(Arrays.asList(func,op1,op2,op3));
+    public void create_linkedfile(String linked_assembly){
+    	try {
+			BufferedWriter la_writer=new BufferedWriter(new FileWriter(new File(mc_fullpath.replace(getFilename(mc_fullpath)+"."+FILEBINARY_FORMAT, getFilename(mc_fullpath)+"_linked."+FILESOURCE_FORMAT))));
+			la_writer.write(linked_assembly);
+			la_writer.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
     }
     
     public void create_binaryfile(){
     	create_file();
+    	insert_machinecode(BINARY_FILE_EOF, BINARY_FILE_EOF, BINARY_FILE_EOF, BINARY_FILE_EOF); // EOF
         try{
 	    	for(int i=0;i<machinecode.size();i++){
 	    		if(i%4==0){
@@ -186,10 +198,24 @@ public final class QEPUAssembler {
 	    		}else
 	    			mc_fos.write((ByteBuffer.allocate(4).putInt(machinecode.get(i)).array()));
 	    	}
-    	}catch(Exception e){
-    		
-    	}
+    	}catch(Exception e){}
        	close_file();
+    }
+    
+    public void insert_machinecode(int func,int op1,int op2,int op3){
+    	machinecode.addAll(Arrays.asList(func,op1,op2,op3));
+    }
+    
+    public String fix_str_newlines(String src){
+        //FIX NEWLINES:
+        StringBuilder strBldr=new StringBuilder(src);
+        while(src.contains("\\n")){
+            int newline_index=src.indexOf("\\n");
+            strBldr.setCharAt(src.indexOf("\\n"), (char)10);
+            strBldr.deleteCharAt(newline_index+1);
+            src=strBldr.toString();
+        }
+        return src;
     }
 
     public String extractType(String operand) throws Exception{
@@ -220,16 +246,17 @@ public final class QEPUAssembler {
         return new_jump_address;
     }
     
-    public String fix_str_newlines(String src){
-        //FIX NEWLINES:
-        StringBuilder strBldr=new StringBuilder(src);
-        while(src.contains("\\n")){
-            int newline_index=src.indexOf("\\n");
-            strBldr.setCharAt(src.indexOf("\\n"), (char)10);
-            strBldr.deleteCharAt(newline_index+1);
-            src=strBldr.toString();
-        }
-        return src;
+    public void setLineOffsets(String assembly){
+    	// SET OFFSETS FOR: STRINGS AND VARIABLES
+    	String[] assembly_splitted=assembly.split("\n");
+    	for(int i=0;i<assembly_splitted.length;i++){
+	    	Matcher line_match=Pattern.compile("(?:(?:\\$.+? )(?:[\"|']?([a-z|0-9]+)[\"|']?)+? ([0-9]+))|\"(.+?)\"").matcher(assembly_splitted[i]);
+	    	while(line_match.find())
+	    		if(line_match.group(1)!=null)
+	    			code_lineoffsets.put(i+1, Integer.parseInt(line_match.group(2))); // SET OFFSET FOR VARIABLES
+				else
+	    			code_lineoffsets.put(i+1, fix_str_newlines(line_match.group(3)).length()+1); // SET OFFSET FOR STRINGS
+	    	}
     }
     
     public boolean include_file_isincluded(String include_filename){
@@ -242,10 +269,8 @@ public final class QEPUAssembler {
     		int include_code_linecount=0;
         	String include_code="";
     		String line="";
-    		int include_start=include_linecount_offset;
     		BufferedReader br=new BufferedReader(new FileReader(mc_fullpath.replace(getFilename(mc_fullpath)+"."+FILEBINARY_FORMAT,include_name)));
-    		while ((line= br.readLine()) != null){include_code+=line+"\n";include_code_linecount++;include_linecount_offset++;}
-    		code_lineoffsets.put(include_start, include_linecount_offset-include_start-1); // SET LINE OFFSETS FOR THIS INCLUDE FILE
+    		while ((line= br.readLine()) != null){include_code+=line+"\n";include_code_linecount++;}
     		br.close();
 			include_files.add(new Object[]{include_name,include_code,include_code_linecount});
 		} catch (Exception e) {
@@ -274,14 +299,13 @@ public final class QEPUAssembler {
         	}
         	if(files_included==0){including_done=true;break;}
         	for(int i=include_files.size()-1;i>=0;i--)
-        		assembly="#SOURCE BEGIN:"+include_files.get(i)[0]+"\n"+(String)(include_files.get(i)[1])+"#SOURCE END: "+include_files.get(i)[0]+"\n"+assembly; // INSERT INCLUDE FILES IN THE BEGINNING OF THE MAIN FILE
+        		assembly="#SOURCE BEGIN:"+include_files.get(i)[0]+"\n"+(String)(include_files.get(i)[1])+"#SOURCE END: "+include_files.get(i)[0]+assembly; // INSERT INCLUDE FILES IN THE BEGINNING OF THE MAIN FILE
         }
     	//HANDLE INCLUDE FILES - END
     	if(include_files.size()>0){
     		//SEE IF MAIN LABEL HAS BEEN DECLARED - BEGIN
-	    	Matcher mainLabel_matcher=Pattern.compile("@(?:.+?)?"+FILEMAIN_ENTRYPOINT).matcher(assembly);
-	    	int mainLabels_declared=0;
-	    	while(mainLabel_matcher.find()) mainLabels_declared++;
+	    	Matcher mainLabel_matcher=Pattern.compile("^@(?:.+?)?"+FILEMAIN_ENTRYPOINT,Pattern.MULTILINE).matcher(assembly);
+	    	int mainLabels_declared=0; while(mainLabel_matcher.find()) mainLabels_declared++;
 	    	if(mainLabels_declared==0) throw new Exception("The label '@"+FILEMAIN_ENTRYPOINT+"' has not been declared in the main file!");
 	    	if(mainLabels_declared>1) throw new Exception("The label '@"+FILEMAIN_ENTRYPOINT+"' cannot be declared multiple times!");
 	    	assembly="jmp @main\n"+assembly;
@@ -290,46 +314,27 @@ public final class QEPUAssembler {
     	}
     	return assembly;
     }
-    
-    public void create_linkedfile(String linked_assembly){
-    	try {
-			BufferedWriter la_writer=new BufferedWriter(new FileWriter(new File(mc_fullpath.replace(getFilename(mc_fullpath)+"."+FILEBINARY_FORMAT, getFilename(mc_fullpath)+"_linked."+FILESOURCE_FORMAT))));
-			la_writer.write(linked_assembly);
-			la_writer.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-    }
-    
-    public String setLineOffsets(String line,int line_index){
-    	// SET OFFSETS FOR: STRINGS AND VARIABLES
-    	Matcher line_match=Pattern.compile("(?:(?:\\$.+? )(?:[\"|']?([a-z|0-9]+)[\"|']?)+? ([0-9]+))|\"(.+?)\"").matcher(line);
-    	while(line_match.find())
-    		if(line_match.group(1)!=null)
-    			code_lineoffsets.put(line_index+1, Integer.parseInt(line_match.group(2))); // SET OFFSET FOR VARIABLES
-			else
-    			code_lineoffsets.put(line_index+1, line_match.group(3).length()+1); // SET OFFSET FOR STRINGS
-		return line;
+   
+    public void declare_labels(String assembly){
+    	int line_ctr=0;
+    	for(String line:assembly.split("\\n")){
+    		line=line.trim();
+    		if(line.length()>0 && line.charAt(0)=='@') code_labels.put(line.replace("@",""),line_ctr+1); // DECLARE LABELS THAT ARE DECLARED IN THE WHOLE FILE
+    		line_ctr++;
+    	}
     }
     
     public String assemble(String assembly){ 
-        String success="";
+        String success="ERROR: UNASSEMBLED";
         try{	
-        	Matcher line_count_match=Pattern.compile("$",Pattern.MULTILINE).matcher(assembly);
-        	while(line_count_match.find()) file_linecount++;
-        	file_linecount--;
-        	
+        	set_file_linecount(assembly);
         	assembly=handle_including(assembly.trim());
+        	setLineOffsets(assembly);
+        	declare_labels(assembly);
         	
         	//Read all lines and iterate through them:
             ArrayList<String> codelines=new ArrayList<>();
-            int line_ctr=0;
-            for(String line:assembly.split("\\n")){
-                String line_sanitized=line.trim();
-                if(line_sanitized.length()>0 && line_sanitized.charAt(0)=='@') code_labels.put(line_sanitized.replace("@",""),line_ctr+1); // DECLARE LABELS THAT ARE DECLARED IN THE WHOLE FILE
-                codelines.add(setLineOffsets(line_sanitized,line_ctr)); // LINE IS VALID
-                line_ctr++;
-            }
+            for(String line:assembly.split("\\n")) codelines.add(line.trim());
             
             //Translate all lines to machine code:
             Pattern line_patt=Pattern.compile("^(?:\\$|@|#)|(?:\".+?\")|[a-z|A-Z|\\d|_|'|\\-|$|@|#]+?(?:\\."+FILESOURCE_FORMAT+"| |'|\"|\n|$)"); // OPERAND PATTERN
@@ -882,4 +887,14 @@ public final class QEPUAssembler {
         success="Your code has been successfully assembled ("+file_linecount+" lines)";
         return success;
     }
+    /*
+    900 LINES, LEL
+    900 LINES, LEL
+    900 LINES, LEL
+    900 LINES, LEL
+    900 LINES, LEL
+    900 LINES, LEL
+    900 LINES, LEL
+	900 LINES, LEL
+	*/
 }
