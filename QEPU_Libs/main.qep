@@ -1,0 +1,28 @@
+get stdio.qep
+get stdlib.qep
+
+@exit_menu
+ret
+
+@menu
+	$menu_options "\n\n1- Add\n2- Sub\n3- Mul\n4- Div\n5- Exit\n\nOption: " 70
+	$menu_choice 0 1 # COMMENT 1
+	mov r0 $menu_options
+	#COMMENT2
+#COMMENT3
+	#COMMENT 4
+/* 
+COMMENT */	
+
+	call @std_out_buff
+
+	mov r1 $menu_choice
+	call @std_in_char
+	mov m0 $menu_choice
+	mov r0 m0
+	mov r1 '5' #COMMENT YEP
+	cme r0 r1 # U WOT M8
+	beq	 @exit_menu # FGHT ME IN RL LYFE
+	jmp @menu
+@main #thats right brah
+call @menu 

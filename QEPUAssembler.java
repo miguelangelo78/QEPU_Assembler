@@ -247,8 +247,8 @@ public final class QEPUAssembler {
     	// SET OFFSETS FOR: STRINGS AND VARIABLES
     	String[] assembly_splitted=assembly.split("\n");
     	for(int i=0;i<assembly_splitted.length;i++){
-	    	Matcher line_match=Pattern.compile("(?:(?:\\$.+? )(?:[\"|']?([a-z|0-9]+)[\"|']?)+? ([0-9]+))|\"(.+?)\"").matcher(assembly_splitted[i]);
-	    	while(line_match.find())
+	    	Matcher line_match=Pattern.compile("(?:\\$.+? ['|\"]?(.+?)['|\"]? ([0-9]+))|\"(.+?)\"").matcher(assembly_splitted[i]);
+    		while(line_match.find())
 	    		if(line_match.group(1)!=null)
 	    			code_lineoffsets.put(i+1, Integer.parseInt(line_match.group(2))); // SET OFFSET FOR VARIABLES
 				else
@@ -344,12 +344,27 @@ public final class QEPUAssembler {
         return error_message;
     }
     
+    public String handle_comments(String assembly){
+    	Matcher comment_matches=Pattern.compile("(?:(\\#.+?)$)|(\\/\\*(?:.|\n)+?\\*\\/)",Pattern.MULTILINE).matcher(assembly);
+    	while(comment_matches.find()){
+    		if(comment_matches.group(1)!=null) //USING 1 LINE COMMENTS
+    			assembly=assembly.replaceAll(comment_matches.group(1),"");
+    		else{ //USING MULTILINE COMMENTS
+    			String multiline_replacement="";
+    			for(int i=0;i<comment_matches.group(2).split("\n").length;i++) multiline_replacement+="\n";
+    			assembly=assembly.replace("\n"+comment_matches.group(2),multiline_replacement);
+    		}
+    	}
+    	return assembly;
+    }
+    
     public String assemble(String assembly){
     	System.out.println("Assembling "+mc_fullpath+"...");
         String success="ERROR: UNASSEMBLED";
         try{	
         	set_file_linecount(assembly);
         	assembly=handle_including(assembly.trim());
+        	assembly=handle_comments(assembly);
         	setLineOffsets(assembly);
         	declare_labels(assembly);
         	
@@ -358,7 +373,7 @@ public final class QEPUAssembler {
             for(String line:assembly.split("\\n")) codelines.add(line.trim());
             
             //Translate all lines to machine code:
-            Pattern line_patt=Pattern.compile("^(?:\\$|@|#)|(?:\".+?\")|[a-z|A-Z|\\d|_|'|\\-|$|@|#]+?(?:\\."+FILESOURCE_FORMAT+"| |'|\"|\n|$)"); // OPERAND PATTERN
+            Pattern line_patt=Pattern.compile("^(?:\\$|@|#)|(?:\".+?\")|[a-z|A-Z|\\d|_|'|\\-|$|@|#]+?(?:	|\\."+FILESOURCE_FORMAT+"| |'|\"|\n|$)"); // OPERAND PATTERN
             for(code_currline=0;code_currline<codelines.size();code_currline++){
                 //FETCH FUNC,OP1,OP2 AND OP3:
                 String currline=codelines.get(code_currline);

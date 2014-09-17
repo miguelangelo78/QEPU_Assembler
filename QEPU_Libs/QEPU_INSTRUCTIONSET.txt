@@ -1,0 +1,71 @@
+case 0x01: /*MOQ (move qubit) */
+case 0x02: /*MOR (move register)*/
+case 0x03: /*MOM (move memory)*/
+case 0x04: /*STR (store)*/
+case 0x05: /*LOD (load)*/
+case 0x06: /*CRW (Constant Ram Write)*/
+case 0x07: /*CQW* (Constant Qubit Write)*/
+case 0x08: /*POP (pop)*/
+case 0x09: /*PSH (push)*/
+case 0x0A: /*CMT (constantmovtheta)*/
+case 0x0B: /*CMP (constantmovphi)*/
+case 0x0C: /*CME (compare)*/
+case 0x0D: /*SEF (SET FLAG)*/
+case 0x0E: /*GEF (GET FLAG)*/
+case 0x0F: /*BES (branch enable stack)*/
+case 0x10: /*BLW (branch if lower (with jumpstack))*/
+case 0x11: /*BLE (branch if lower or equal (with jumpstack))*/
+case 0x12: /*BEQ (branch if equal) (with jumpstack)*/
+case 0x13: /*BGE (branch if greater or equal (with jumpstack))*/
+case 0x14: /*BGR (branch if greater (with jumpstack))*/
+case 0x15: /*BDI (branch if different (with jumpstack))*/
+case 0x16: /*BZE (branch if register(op1)=0 (zero) (with jumpstack))*/
+case 0x17: /*BNZ (branch if register(op1)!=0 (not zero) (with jumpstack))*/
+case 0x18: /*CALL (incondicional branch WITH jumpstack)*/
+case 0x19: /*RET (return)*/
+case 0x1A: /*JMP (jump (incondicional branch WITHOUT jumpstack))*/
+case 0x1B: /*ADD*/
+case 0x1C: /*SUB*/
+case 0x1D: /*MUL*/
+case 0x1E: /*DIV*/
+case 0x1F: /*AND*/
+case 0x20: /*OR*/
+case 0x21: /*NOR*/
+case 0x22: /*XOR*/
+case 0x23: /*NAN*/
+case 0x24: /*NOT*/
+case 0x25: /*SHL*/
+case 0x26: /*SHR*/
+case 0x27: /*INT (interrupt)*/ //NEEDS TABLE SYSTEM
+case 0x28: /*DLY (delay)*/
+case 0x29: /*NOP (nop) - DOES NOTHING*/ 
+case 0x2A: /*HLT (halt)*/ 
+case 0x2B: // X GATE
+case 0x2C: // Y GATE
+case 0x2D: // Z GATE
+case 0x2E: // H GATE
+case 0x2F: // S GATE
+case 0x30: // T GATE
+case 0x31: // ROTATE X GATE
+case 0x32: // ROTATE Y GATE
+case 0x33: // ROTATE Z GATE
+case 0x34: // CNOT GATE
+case 0x35: // CSIGN GATE
+case 0x36: // SWAP GATE
+case 0x37: // INCREMENT GATE
+case 0x38: // DECREMENT GATE
+case 0x39: // SWAGSQ GATE
+case 0x3A: // SWAPI GATE
+case 0x3B: // CONTROL SWAP GATE
+case 0x3C: // TOFFOLI GATE
+case 0x3D: // DEUTSCH GATE
+
+//INTERRUPT CONSTANTS:
+#define INT_RESERVED_ADDRESSPOINTER 0
+#define INT_RESERVED_ADDRESSDATASTORE 1
+#define INT_UART_OUT_CHAR 0
+#define INT_UART_OUT_BUFFER 1
+#define INT_UART_IN_CHAR_NO_ECHO 2
+#define INT_UART_IN_CHAR_ECHO 3
+#define INT_UART_IN_BUFF_NO_ECHO 4
+#define INT_UART_IN_BUFF_ECHO 5
