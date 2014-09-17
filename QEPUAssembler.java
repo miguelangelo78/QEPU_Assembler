@@ -208,7 +208,7 @@ public final class QEPUAssembler {
         StringBuilder strBldr=new StringBuilder(src);
         while(src.contains("\\n")){
             int newline_index=src.indexOf("\\n");
-            strBldr.setCharAt(src.indexOf("\\n"), (char)10);
+            strBldr.setCharAt(newline_index, (char)10);
             strBldr.deleteCharAt(newline_index+1);
             src=strBldr.toString();
         }
@@ -393,8 +393,8 @@ public final class QEPUAssembler {
                         if(var_bytelength<=0) throw new Exception("The size operand (3rd op.) must be greater than 0");
                         
                         if(op_types[1].equals("V")){ // $ VAR1 = $VAR2
-                            String var1=operands[OP1].replace("$","");
-                            String var2=operands[OP2].replace("$","");
+                            String var1=operands[OP1];
+                            String var2=operands[OP2];
                             int var2_bytelength=code_variables.get(var2)[1];
                             
                             if(var2_bytelength>var_bytelength) throw new Exception("The variable '"+var2+"' is bigger than the variable '"+var1+"'");
@@ -427,6 +427,7 @@ public final class QEPUAssembler {
                         }
                         else throw new Exception("The operands are wrong");
                         
+                        operands[OP1]="$"+operands[OP1].trim();
                         if(!code_variables.containsKey(operands[OP1])) code_variables.put(operands[OP1],new int[]{code_variables_address_start,var_bytelength});
                         code_variables_address_start+=var_bytelength;
                         break;
