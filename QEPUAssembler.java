@@ -22,7 +22,7 @@ public final class QEPUAssembler {
     private static final int FUNC=0,OP1=1,OP2=2,OP3=3,
                              REGISTER=4,QUBIT=5,MEMORY=6,FLAG=7,CONSTANT=8;
     private static final int MAX_OPERAND_COUNT=3,BINARY_FILE_EOF=0xFF;
-    private static final char STRING_TERMINATOR='$',LABEL_TYPE='@',VAR_TYPE='$';
+    private static final char STRING_TERMINATOR='$';
     
     private static final String FILESOURCE_FORMAT="qep",
 	 							FILEBINARY_FORMAT="bin",
@@ -216,18 +216,20 @@ public final class QEPUAssembler {
     }
 
     public String extractType(String operand) throws Exception{
-        String type;
-        if(operand.charAt(0)==LABEL_TYPE) type="L"; // THE OPERAND IS A LABEL
-        else if(operand.charAt(0)==VAR_TYPE) type="V"; // THE OPERAND IS A VARIABLE
-        else if(operand.contains("\"")) type="S"; // THE OPERAND IS A STRING
-        else if(operand.contains("'")) type="C"; // THE OPERAND IS A CHARACTER
-        else
-            try{
-            	Matcher matcher=Pattern.compile("[a-z|A-Z]+").matcher(operand); matcher.find();
-            	type=matcher.group(0).toUpperCase(); // THE OPERAND IS A REGULAR TYPE
-            }catch(Exception e){
-            	type="K"; // THE OPERAND IS A NUMBER
-            }
+        String type="NULLTYPE";
+        try{
+        	Matcher type_matcher=Pattern.compile("((?:\\*)?(?:[ |	]+?)?[m|r|q])[0-9]+|(?:([0-9]+))|((?:\\*)?(?:[ |	]+?)?[@|$|\"|']+).+?$").matcher(operand); type_matcher.find();
+        	if(type_matcher.group(1)!=null) type=type_matcher.group(1).toUpperCase(); //USING M|R|Q
+        	else if(type_matcher.group(2)!=null) type="K"; //USING NUMBERS
+        	else if(type_matcher.group(3)!=null){ //USING @|$|"|'
+        		String operand_specialchar=type_matcher.group(3);
+        		if(operand_specialchar.contains("@")) type="L";
+        		if(operand_specialchar.contains("$")) type="V";
+        		if(operand_specialchar.contains("\"")) type="S";
+        		if(operand_specialchar.contains("'")) type="C";
+        		if(operand_specialchar.contains("*")) type="*"+type;
+        	}
+        }catch(Exception e){}
         return type;
     }
     
@@ -373,7 +375,7 @@ public final class QEPUAssembler {
             for(String line:assembly.split("\\n")) codelines.add(line.trim());
             
             //Translate all lines to machine code:
-            Pattern line_patt=Pattern.compile("^(?:\\$|@|#)|(?:\".+?\")|[a-z|A-Z|\\d|_|'|\\-|$|@|#]+?(?:	|\\."+FILESOURCE_FORMAT+"| |'|\"|\n|$)"); // OPERAND PATTERN
+            Pattern line_patt=Pattern.compile("^(?:\\$|@|#)|(?:\".+?\")|[a-z|A-Z|\\d|*|_|'|\\-|$|@|#]+?(?:	|\\."+FILESOURCE_FORMAT+"| |'|\"|\n|$)"); // OPERAND PATTERN
             for(code_currline=0;code_currline<codelines.size();code_currline++){
                 //FETCH FUNC,OP1,OP2 AND OP3:
                 String currline=codelines.get(code_currline);
@@ -387,20 +389,32 @@ public final class QEPUAssembler {
                     continue;
                 }
                 
+                //VALIDATE FUNCTION:
                 String function=operands[FUNC].toUpperCase();
-                
                 if(!dict.containsKey(function) || dict.get(function)[0]!=FUNC) // DOES THIS FUNCTION EXIST IN THE DICTIONARY?
                     throw new Exception("The instruction '"+operands[FUNC]+"' is unrecognizable");
                 if(dict.get(function)[1]!=operands.length-1)
                     throw new Exception("The instruction '"+operands[FUNC]+"' has incorrect size. You gave "+(operands.length-1)+" operand"+((operands.length-1>1)?"s":"")+". It needs "+dict.get(function)[1]+" operands");
                 
-                //INSTRUCTION MAY BE VALID (FETCH OPERAND TYPES)
+                //INSTRUCTION MAY BE VALID AT THIS POINT, FETCH OPERAND TYPES:
                 String [] op_types=new String[operands.length-1];
                 for(int i=0;i<op_types.length;i++){
-                    op_types[i]=extractType(operands[i+1]);
+                    op_types[i]=extractType(operands[i+1].trim());
                     operands[i+1]=operands[i+1].replaceAll("'|\"", "");
                 }
                 
+                //TRANSFORM OPERAND POINTERS INTO CONSTANT NUMBERS (WHICH IS THE ADDRESS OF THE POINTER):
+                for(int i=0;i<MAX_OPERAND_COUNT;i++)
+	                try{
+	                	if(op_types[i].equals("*M") || op_types[i].equals("*R") || op_types[i].equals("*Q") || op_types[i].equals("*L") ||  op_types[i].equals("*V")){
+		            		if(op_types[i].equals("*L")) operands[OP2]=""+code_labels.get(operands[OP2].replaceAll("\\*|@",""));
+		            		else if(op_types[i].equals("*V")) operands[OP2]=""+code_variables.get(operands[OP2].replaceAll("\\*",""))[0];
+		            		else operands[OP2]=""+extractNumber(operands[OP2]);
+		            		op_types[i]="K";
+		            	}
+	                }catch(Exception e){}
+            	
+                //TRANSLATE FUNCTIONS:
                 switch(function){ // FUNCTION OPERAND
                     case "$": // VARIABLE DECLARATION
                         if(!op_types[2].equals("K")) throw new Exception("The size operand (3rd op.) must be a number");
@@ -452,7 +466,7 @@ public final class QEPUAssembler {
                         break;
                     case "MOV":
                         // DECIDE WHETHER IT IS A LOD, STR, MOR, MOM, CMT, CMP, CRW OR CQW
-                        if(op_types[0].equals("V") && op_types[1].equals("S")){ // V S ->
+                    	if(op_types[0].equals("V") && op_types[1].equals("S")){ // V S ->
                             if(!code_variables.containsKey(operands[OP1])) throw new Exception("The variable '"+operands[OP1]+"' was not declared");
                             operands[OP2]=fix_str_newlines(operands[OP2])+STRING_TERMINATOR;
                             int var_bytecount=code_variables.get(operands[OP1])[1];
@@ -460,7 +474,6 @@ public final class QEPUAssembler {
                             for(int i=0;i<var_bytecount;i++)
                                 if(i<operands[OP2].length()) insert_machinecode(Instset.CRW.ordinal(), code_variables.get(operands[OP1])[0]+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
                                 else insert_machinecode(Instset.CRW.ordinal(), code_variables.get(operands[OP1])[0]+i, 0, 0);
-                            //code_lineoffsets.put(code_currline+1,var_bytecount);
                         }
                         else
                         if(op_types[0].equals("V") && op_types[1].equals("C")) // V C
@@ -480,14 +493,13 @@ public final class QEPUAssembler {
                             for(int i=0;i<var1_bytecount;i++)
                                 if(i<var2_bytecount) insert_machinecode(Instset.MOM.ordinal(),code_variables.get(operands[OP1])[0]+i,code_variables.get(operands[OP2])[0]+i,0);
                                 else insert_machinecode(Instset.CRW.ordinal(),code_variables.get(operands[OP1])[0]+i,0,0);
-                            //code_lineoffsets.put(code_currline+1,var1_bytecount);
                         }
                         else
                         if(op_types[0].equals("M") && op_types[1].equals("V")) // M V
                             insert_machinecode(Instset.MOM.ordinal(),extractNumber(operands[OP1]),code_variables.get(operands[OP2])[0],0);
                         else
                         if(op_types[0].equals("R") && op_types[1].equals("V")) // R V
-                            insert_machinecode(Instset.CQW.ordinal(),extractNumber(operands[OP1]),code_variables.get(operands[OP2])[0],0);
+                            insert_machinecode(Instset.LOD.ordinal(),extractNumber(operands[OP1]),code_variables.get(operands[OP2])[0],0);
                         else
                         if(op_types[0].equals("V") && op_types[1].equals("R")) // V R
                             insert_machinecode(Instset.STR.ordinal(),code_variables.get(operands[OP1])[0],extractNumber(operands[OP2]),0);
@@ -530,14 +542,12 @@ public final class QEPUAssembler {
                             operands[OP2]=fix_str_newlines(operands[OP2])+STRING_TERMINATOR;
                             for(int i=0;i<operands[OP2].length();i++)
                                 insert_machinecode(Instset.CRW.ordinal(),extractNumber(operands[OP1])+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
-                            //code_lineoffsets.put(code_currline+1,operands[OP2].length());
                         }
                         else
                         if(op_types[0].equals("R") && op_types[1].equals("S")){ // R S
                             operands[OP2]=fix_str_newlines(operands[OP2])+STRING_TERMINATOR;
                             for(int i=0;i<operands[OP2].length();i++)
                                 insert_machinecode(Instset.CQW.ordinal(),extractNumber(operands[OP1])+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
-                            //code_lineoffsets.put(code_currline+1,operands[OP2].length());
                         }
                         else throw new Exception("The instruction is malformed");
                             break;
@@ -663,8 +673,6 @@ public final class QEPUAssembler {
                         else throw new Exception("The instruction is malformed");
                         break;
                     case "ADD":
-                        //for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
-                        //    if(op_types[i].equals("V")){operands[OP1+i]="M"+code_variables.get(operands[OP1+i])[0];op_types[i]="M";}
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
                             insert_machinecode(Instset.ADD.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
                         else
@@ -677,8 +685,6 @@ public final class QEPUAssembler {
                                     throw new Exception("The instruction is malformed");
                         break;   
                     case "SUB": 
-                        //for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
-                        //    if(op_types[i].equals("V")){operands[OP1+i]="M"+code_variables.get(operands[OP1+i])[0];op_types[i]="M";}
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R")) //M M M
                             insert_machinecode(Instset.SUB.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
                         else
@@ -690,8 +696,6 @@ public final class QEPUAssembler {
                                 else throw new Exception("The instruction is malformed");
                         break;   
                     case "MUL": 
-                        //for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
-                        //    if(op_types[i].equals("V")){operands[OP1+i]="M"+code_variables.get(operands[OP1+i])[0];op_types[i]="M";}
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
                             insert_machinecode(Instset.MUL.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
                         else
@@ -703,8 +707,6 @@ public final class QEPUAssembler {
                                 else throw new Exception("The instruction is malformed");
                         break;   
                     case "DIV": 
-                        //for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
-                        //    if(op_types[i].equals("V")){operands[OP1+i]="M"+code_variables.get(operands[OP1+i])[0];op_types[i]="M";}
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
                             insert_machinecode(Instset.DIV.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
                         else
@@ -716,8 +718,6 @@ public final class QEPUAssembler {
                                 else throw new Exception("The instruction is malformed");
                         break;   
                     case "AND": 
-                        //for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
-                        //    if(op_types[i].equals("V")){operands[OP1+i]="M"+code_variables.get(operands[OP1+i])[0];op_types[i]="M";}
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
                             insert_machinecode(Instset.AND.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
                         else
@@ -729,8 +729,6 @@ public final class QEPUAssembler {
                                 else throw new Exception("The instruction is malformed");
                         break;   
                     case "OR": 
-                        //for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
-                        //    if(op_types[i].equals("V")){operands[OP1+i]="M"+code_variables.get(operands[OP1+i])[0];op_types[i]="M";}
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
                             insert_machinecode(Instset.OR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
                         else
@@ -742,8 +740,6 @@ public final class QEPUAssembler {
                                 else throw new Exception("The instruction is malformed");
                         break;   
                     case "NOR": 
-                        //for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
-                        //    if(op_types[i].equals("V")){operands[OP1+i]="M"+code_variables.get(operands[OP1+i])[0];op_types[i]="M";}
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
                             insert_machinecode(Instset.NOR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
                         else
@@ -768,8 +764,6 @@ public final class QEPUAssembler {
                                 else throw new Exception("The instruction is malformed");
                         break;   
                     case "NAN": 
-                        //for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
-                        //    if(op_types[i].equals("V")){operands[OP1+i]="M"+code_variables.get(operands[OP1+i])[0];op_types[i]="M";}
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
                             insert_machinecode(Instset.NAN.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
                         else
@@ -781,15 +775,11 @@ public final class QEPUAssembler {
                                 else throw new Exception("The instruction is malformed");
                         break;   
                     case "NOT": 
-                        //for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
-                        //    if(op_types[i].equals("V")){operands[OP1+i]="M"+code_variables.get(operands[OP1+i])[0];op_types[i]="M";}
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
                             insert_machinecode(Instset.NOT.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
                         else throw new Exception("The instruction is malformed");
                         break;   
                     case "SHL": 
-                        //for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
-                        //    if(op_types[i].equals("V")){operands[OP1+i]="M"+code_variables.get(operands[OP1+i])[0];op_types[i]="M";}
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
                             insert_machinecode(Instset.SHL.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
                         else
@@ -801,8 +791,6 @@ public final class QEPUAssembler {
                                 else throw new Exception("The instruction is malformed");
                         break;   
                     case "SHR": 
-                        //for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
-                        //    if(op_types[i].equals("V")){operands[OP1+i]="M"+code_variables.get(operands[OP1+i])[0];op_types[i]="M";}
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
                             insert_machinecode(Instset.SHR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
                         else
