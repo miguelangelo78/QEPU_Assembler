@@ -25,10 +25,10 @@ public class qassembler {
 	}
 	
 	public static void main(String[] args) {
-		String n="C:\\Users\\Miguel\\Desktop\\QEPU_Libs\\main.qep";
-		JOptionPane.showMessageDialog(null,new QEPUAssembler(n.replace(FILESOURCE_FORMAT,FILEBINARY_FORMAT)).assemble(readFile(n)), "Assembled successfully", JOptionPane.INFORMATION_MESSAGE);
-		//if(args.length!=1) messagebox("Quantum Assembler Error","Usage: java -jar qassembler.jar \"C:\\....\\filename"+FILESOURCE_FORMAT+"\"",JOptionPane.ERROR_MESSAGE,true);
-		//if(!args[0].contains(FILESOURCE_FORMAT)) messagebox("Quantum Assembler Error","The file format is wrong. Use '"+FILESOURCE_FORMAT+"'",JOptionPane.ERROR_MESSAGE,true);
-		//JOptionPane.showMessageDialog(null,new QEPUAssembler(args[0].replace(FILESOURCE_FORMAT,FILEBINARY_FORMAT)).assemble(readFile(args[0])), "Assembled successfully", JOptionPane.INFORMATION_MESSAGE);
+		//String n="C:\\Users\\Miguel\\Desktop\\QEPU_Libs\\main.qep";
+		//JOptionPane.showMessageDialog(null,new QEPUAssembler(n.replace(FILESOURCE_FORMAT,FILEBINARY_FORMAT)).assemble(readFile(n)), "Assembled successfully", JOptionPane.INFORMATION_MESSAGE);
+		if(args.length!=1) messagebox("Quantum Assembler Error","Usage: java -jar qassembler.jar \"C:\\....\\filename"+FILESOURCE_FORMAT+"\"",JOptionPane.ERROR_MESSAGE,true);
+		if(!args[0].contains(FILESOURCE_FORMAT)) messagebox("Quantum Assembler Error","The file format is wrong. Use '"+FILESOURCE_FORMAT+"'",JOptionPane.ERROR_MESSAGE,true);
+		JOptionPane.showMessageDialog(null,new QEPUAssembler(args[0].replace(FILESOURCE_FORMAT,FILEBINARY_FORMAT)).assemble(readFile(args[0])), "Assembled successfully", JOptionPane.INFORMATION_MESSAGE);
 	}
 }

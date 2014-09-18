@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -19,15 +20,16 @@ import java.util.regex.Pattern;
 public final class QEPUAssembler {
 	// GLOBAL VARIABLES:
     // TYPES OF OPERANDS:
-    private static final int FUNC=0,OP1=1,OP2=2,OP3=3,
-                             REGISTER=4,QUBIT=5,MEMORY=6,FLAG=7,CONSTANT=8;
+    private static final int FUNC=0,OP1=1,OP2=2,OP3=3,REGISTER=4,QUBIT=5,MEMORY=6,FLAG=7,CONSTANT=8;
+    //CONSTANTS:
     private static final int MAX_OPERAND_COUNT=3,BINARY_FILE_EOF=0xFF;
     private static final char STRING_TERMINATOR='$';
-    
-    private static final String FILESOURCE_FORMAT="qep",
-	 							FILEBINARY_FORMAT="bin",
-    							FILEMAIN_ENTRYPOINT="main";
-    
+    private static final String FILESOURCE_FORMAT="qep",FILEBINARY_FORMAT="bin",FILEMAIN_ENTRYPOINT="main";
+    //CONSTANT REGISTERS:
+    //CARRIERS:
+    private static final List<String[]> reg_carriers=Arrays.asList(new String[]{"ROC","R0"},new String[]{"RIC","R1"});   								  
+    //DEFAULT SIZERS:
+    	
     private int code_currline;
     private Map<Integer,Integer> code_lineoffsets;
     private Map<String,Integer> code_labels;
@@ -218,7 +220,7 @@ public final class QEPUAssembler {
     public String extractType(String operand) throws Exception{
         String type="NULLTYPE";
         try{
-        	Matcher type_matcher=Pattern.compile("((?:\\*)?(?:[ |	]+?)?[m|r|q])[0-9]+|(?:([0-9]+))|((?:\\*)?(?:[ |	]+?)?[@|$|\"|']+).+?$").matcher(operand); type_matcher.find();
+        	Matcher type_matcher=Pattern.compile("((?:\\*)?(?:[ |	]+?)?[m|r|q])[0-9]+|(?:([0-9]+))|((?:\\*)?(?:[ |	]+?)?[@|$|\"|']+).+?$",Pattern.CASE_INSENSITIVE).matcher(operand); type_matcher.find();
         	if(type_matcher.group(1)!=null) type=type_matcher.group(1).toUpperCase(); //USING M|R|Q
         	else if(type_matcher.group(2)!=null) type="K"; //USING NUMBERS
         	else if(type_matcher.group(3)!=null){ //USING @|$|"|'
@@ -399,17 +401,21 @@ public final class QEPUAssembler {
                 //INSTRUCTION MAY BE VALID AT THIS POINT, FETCH OPERAND TYPES:
                 String [] op_types=new String[operands.length-1];
                 for(int i=0;i<op_types.length;i++){
-                    op_types[i]=extractType(operands[i+1].trim());
-                    operands[i+1]=operands[i+1].replaceAll("'|\"", "");
+                    operands[i+1]=operands[i+1].replaceAll("'|\"", "").trim();
+                    for(int j=0;j<reg_carriers.size();j++) //REPLACE ALL CONSTANT OPERANDS THAT MAY BE USED (ROC AND RIC)
+                        if(operands[i+1].toUpperCase().equals(reg_carriers.get(j)[0])){
+	                    	operands[i+1]=reg_carriers.get(j)[1]; break;
+                    	}
+                    op_types[i]=extractType(operands[i+1]);
                 }
                 
                 //TRANSFORM OPERAND POINTERS INTO CONSTANT NUMBERS (WHICH IS THE ADDRESS OF THE POINTER):
                 for(int i=0;i<MAX_OPERAND_COUNT;i++)
 	                try{
 	                	if(op_types[i].equals("*M") || op_types[i].equals("*R") || op_types[i].equals("*Q") || op_types[i].equals("*L") ||  op_types[i].equals("*V")){
-		            		if(op_types[i].equals("*L")) operands[OP2]=""+code_labels.get(operands[OP2].replaceAll("\\*|@",""));
-		            		else if(op_types[i].equals("*V")) operands[OP2]=""+code_variables.get(operands[OP2].replaceAll("\\*",""))[0];
-		            		else operands[OP2]=""+extractNumber(operands[OP2]);
+		            		if(op_types[i].equals("*L")) operands[i+1]=""+code_labels.get(operands[i+1].replaceAll("\\*|@",""));
+		            		else if(op_types[i].equals("*V")) operands[i+1]=""+code_variables.get(operands[i+1].replaceAll("\\*",""))[0];
+		            		else operands[i+1]=""+extractNumber(operands[i+1]);
 		            		op_types[i]="K";
 		            	}
 	                }catch(Exception e){}
