@@ -1,0 +1,19 @@
+get stdio.qep
+@main
+
+mov m0 "Test\n"
+
+#FOR LOOP:
+mov r2 0
+mov r3 10
+@for_ret
+cme r2 r3
+bge @for_exit
+
+	#DO STUFF HERE
+	mov roc *m0
+	call @std_out_buff
+
+add r2 r2 1
+jmp @for_ret
+@for_exit
