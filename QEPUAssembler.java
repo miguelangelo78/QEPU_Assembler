@@ -25,11 +25,11 @@ public final class QEPUAssembler {
     private static final int MAX_OPERAND_COUNT=3,BINARY_FILE_EOF=0xFF;
     private static final char STRING_TERMINATOR='$';
     private static final String FILESOURCE_FORMAT="qep",FILEBINARY_FORMAT="bin",FILEMAIN_ENTRYPOINT="main";
+    private static final String INVALID_INSTRUCTION_MSG="The instruction is malformed";
     //CONSTANT REGISTERS:
     //CARRIERS:
     private static final List<String[]> reg_carriers=Arrays.asList(new String[]{"ROC","R0"},new String[]{"RIC","R1"});   								  
-    //DEFAULT SIZERS:
-    	
+    
     private int code_currline;
     private Map<Integer,Integer> code_lineoffsets;
     private Map<String,Integer> code_labels;
@@ -257,7 +257,7 @@ public final class QEPUAssembler {
 	    			code_lineoffsets.put(i+1, Integer.parseInt(line_match.group(2))); // SET OFFSET FOR VARIABLES
 				else
 	    			code_lineoffsets.put(i+1, fix_str_newlines(line_match.group(3)).length()+1); // SET OFFSET FOR STRINGS
-	    	}
+	    }
     }
     
     public boolean include_file_isincluded(String include_filename){
@@ -278,6 +278,46 @@ public final class QEPUAssembler {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+    }
+    
+    public String handle_intervals(String assembly) throws Exception{
+    	Pattern intervals_patt=Pattern.compile("([0-9| |	]+)-+(?:[ |	]+?)?([0-9]+)",Pattern.CASE_INSENSITIVE|Pattern.MULTILINE);
+    	int line_ctr=0;
+    	for(String line:assembly.split("\\n")){
+    		Matcher intervals_match=intervals_patt.matcher(line.trim());
+    		String interval_substitute="";
+    		
+    		while(intervals_match.find()){
+    			int start_interval=Integer.parseInt(intervals_match.group(1).trim());
+        		int end_interval=Integer.parseInt(intervals_match.group(2).trim());
+    			
+        		if(start_interval>end_interval) throw new Exception("The start interval "+start_interval+" is greater than the end interval "+end_interval);
+        		
+        		//IF THERE'S 1 INTERVAL:
+        		for(int i=start_interval;i<=end_interval;i++) interval_substitute+=line.replaceFirst(intervals_match.group(0),Integer.toString(i)+" ")+"\n";
+        		
+        		//IF THERE'S MORE THAN 1 INTERVAL:
+        		while(intervals_match.find()){
+        			start_interval=Integer.parseInt(intervals_match.group(1).trim());
+        			end_interval=Integer.parseInt(intervals_match.group(2).trim());
+        			if(start_interval>end_interval) throw new Exception("(Line: "+line_ctr+") The start interval '"+start_interval+"' is greater than the end interval '"+end_interval+"'");
+            		
+        			for(int i=start_interval;i<=end_interval;i++) interval_substitute=interval_substitute.replaceFirst(intervals_match.group(0), Integer.toString(i)+" ");
+        		}
+        		
+        		//CHECK FOR LEFTOVER INTERVALS:
+        		intervals_match=intervals_patt.matcher(interval_substitute);
+        		while(intervals_match.find()) interval_substitute=interval_substitute.replaceAll(".+?"+intervals_match.group(0)+"\n", "");
+        		
+        		//LINE IS PREPARED TO BE REPLACED BY THE PROPER INTERVAL:
+        		assembly=assembly.replace(line+"\n",interval_substitute);
+        		//SET LINE OFFSETS:
+        		code_lineoffsets.put(line_ctr+1,interval_substitute.split("\n").length);
+        		break;
+        	}
+    		line_ctr++;
+    	}
+    	return assembly;
     }
     
     public String handle_including(String assembly)throws Exception{
@@ -342,7 +382,8 @@ public final class QEPUAssembler {
         	error_line-=(Integer)include_files.get(i)[2]+2;
         }
         String error_message="There was an error in ";
-        if(include_files.size()>0 && code_currline<included_linesaccumulated) error_message+="the file: '"+error_file+"' in the line: "+error_line;
+        if(include_files.size()>0 && code_currline<included_linesaccumulated)
+        	error_message+="the file: '"+error_file+"' in "+((error_line<0)?"the assemble time":"the line: "+error_line);
         else error_message+=" the line: "+(code_currline-included_linesaccumulated);
         error_message+=". ";
         return error_message;
@@ -369,6 +410,7 @@ public final class QEPUAssembler {
         	set_file_linecount(assembly);
         	assembly=handle_including(assembly.trim());
         	assembly=handle_comments(assembly);
+        	assembly=handle_intervals(assembly);
         	setLineOffsets(assembly);
         	declare_labels(assembly);
         	
@@ -401,12 +443,13 @@ public final class QEPUAssembler {
                 //INSTRUCTION MAY BE VALID AT THIS POINT, FETCH OPERAND TYPES:
                 String [] op_types=new String[operands.length-1];
                 for(int i=0;i<op_types.length;i++){
-                    operands[i+1]=operands[i+1].replaceAll("'|\"", "").trim();
+                    operands[i+1]=operands[i+1].trim();
                     for(int j=0;j<reg_carriers.size();j++) //REPLACE ALL CONSTANT OPERANDS THAT MAY BE USED (ROC AND RIC)
                         if(operands[i+1].toUpperCase().equals(reg_carriers.get(j)[0])){
 	                    	operands[i+1]=reg_carriers.get(j)[1]; break;
                     	}
                     op_types[i]=extractType(operands[i+1]);
+                    operands[i+1]=operands[i+1].replaceAll("'|\"", "");
                 }
                 
                 //TRANSFORM OPERAND POINTERS INTO CONSTANT NUMBERS (WHICH IS THE ADDRESS OF THE POINTER):
@@ -555,45 +598,45 @@ public final class QEPUAssembler {
                             for(int i=0;i<operands[OP2].length();i++)
                                 insert_machinecode(Instset.CQW.ordinal(),extractNumber(operands[OP1])+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
                         }
-                        else throw new Exception("The instruction is malformed");
-                            break;
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
+                        break;
                     case "POP":
                         if(op_types[0].equals("R")) insert_machinecode(Instset.POP.ordinal(), extractNumber(operands[OP1]), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;
                     case "PSH":
                         if(op_types[0].equals("R")) insert_machinecode(Instset.PSH.ordinal(), extractNumber(operands[OP1]), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;
                     case "CMT":
                         if(op_types[0].equals("QT") && op_types[1].equals("K"))
                             insert_machinecode(Instset.CMT.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;
                     case "CMP":
                         if(op_types[0].equals("QT") && op_types[1].equals("K"))
                             insert_machinecode(Instset.CMP.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;
                     case "CME": 
                         if(op_types[0].equals("R") && op_types[1].equals("R"))
                             insert_machinecode(Instset.CME.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;    
                     case "SEF": 
                         if(op_types[0].equals("F") && op_types[1].equals("K"))
                             insert_machinecode(Instset.SEF.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;    
                     case "GEF": 
                         if(op_types[0].equals("M") && op_types[1].equals("F"))
                             insert_machinecode(Instset.GEF.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;    
                     case "BES": 
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BES.ordinal(), extractNumber(operands[OP1]), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "BLW": 
                         if(op_types[0].equals("L"))
@@ -601,7 +644,7 @@ public final class QEPUAssembler {
                         else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BLW.ordinal(),getJumpOffset(extractNumber(operands[OP1])), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;    
                     case "BLE": 
                         if(op_types[0].equals("L"))
@@ -609,7 +652,7 @@ public final class QEPUAssembler {
                         else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BLW.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "BEQ": 
                         if(op_types[0].equals("L"))
@@ -617,7 +660,7 @@ public final class QEPUAssembler {
                         else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BEQ.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "BGE": 
                         if(op_types[0].equals("L"))
@@ -625,7 +668,7 @@ public final class QEPUAssembler {
                         else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BGE.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "BGR": 
                         if(op_types[0].equals("L"))
@@ -633,7 +676,7 @@ public final class QEPUAssembler {
                         else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BGR.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "BDI": 
                         if(op_types[0].equals("L"))
@@ -641,7 +684,7 @@ public final class QEPUAssembler {
                         else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BDI.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "BZE": 
                         if(op_types[0].equals("L"))
@@ -649,7 +692,7 @@ public final class QEPUAssembler {
                         else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BZE.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "BNZ": 
                         if(op_types[0].equals("L"))
@@ -657,7 +700,7 @@ public final class QEPUAssembler {
                         else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.BNZ.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "CALL": 
                         if(op_types[0].equals("L"))
@@ -665,7 +708,7 @@ public final class QEPUAssembler {
                         else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.CALL.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "RET": 
                         insert_machinecode(Instset.RET.ordinal(), 0, 0, 0);
@@ -676,7 +719,7 @@ public final class QEPUAssembler {
                         else
                         if(op_types[0].equals("K"))
                             insert_machinecode(Instset.JMP.ordinal(), getJumpOffset(extractNumber(operands[OP1])), 0, 0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;
                     case "ADD":
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
@@ -688,7 +731,7 @@ public final class QEPUAssembler {
                                 if(op_types[0].equals("R") && op_types[1].equals("K") && op_types[2].equals("R")) // M K M
                                     insert_machinecode(Instset.ADDRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP3]), extractNumber(operands[OP2]));
                                 else
-                                    throw new Exception("The instruction is malformed");
+                                    throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "SUB": 
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R")) //M M M
@@ -699,7 +742,7 @@ public final class QEPUAssembler {
                             else
                                 if(op_types[0].equals("R") && op_types[1].equals("K") && op_types[2].equals("R")) // M K M
                                     insert_machinecode(Instset.SUBKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                                else throw new Exception("The instruction is malformed");
+                                else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "MUL": 
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
@@ -710,7 +753,7 @@ public final class QEPUAssembler {
                             else
                                 if(op_types[0].equals("R") && op_types[1].equals("K") && op_types[2].equals("R")) // M K M
                                     insert_machinecode(Instset.MULRK.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP3]), extractNumber(operands[OP2]));
-                                else throw new Exception("The instruction is malformed");
+                                else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "DIV": 
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
@@ -721,7 +764,7 @@ public final class QEPUAssembler {
                             else
                                 if(op_types[0].equals("R") && op_types[1].equals("K") && op_types[2].equals("R")) // M K M
                                     insert_machinecode(Instset.DIVKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                                else throw new Exception("The instruction is malformed");
+                                else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "AND": 
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
@@ -732,7 +775,7 @@ public final class QEPUAssembler {
                             else
                                 if(op_types[0].equals("R") && op_types[1].equals("K") && op_types[2].equals("R")) // M K M
                                     insert_machinecode(Instset.ANDKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                                else throw new Exception("The instruction is malformed");
+                                else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "OR": 
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
@@ -743,7 +786,7 @@ public final class QEPUAssembler {
                             else
                                 if(op_types[0].equals("R") && op_types[1].equals("K") && op_types[2].equals("R")) // M K M
                                     insert_machinecode(Instset.ORKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                                else throw new Exception("The instruction is malformed");
+                                else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "NOR": 
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
@@ -754,7 +797,7 @@ public final class QEPUAssembler {
                             else
                                 if(op_types[0].equals("R") && op_types[1].equals("K") && op_types[2].equals("R")) // M K M
                                     insert_machinecode(Instset.NORKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                                else throw new Exception("The instruction is malformed");
+                                else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "XOR": 
                         for(int i=0;i<MAX_OPERAND_COUNT;i++) // USING VARIABLES TO CALCULATE
@@ -767,7 +810,7 @@ public final class QEPUAssembler {
                             else
                                 if(op_types[0].equals("R") && op_types[1].equals("K") && op_types[2].equals("R")) // M K M
                                     insert_machinecode(Instset.XORKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                                else throw new Exception("The instruction is malformed");
+                                else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "NAN": 
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
@@ -778,12 +821,12 @@ public final class QEPUAssembler {
                             else
                                 if(op_types[0].equals("R") && op_types[1].equals("K") && op_types[2].equals("R")) // M K M
                                     insert_machinecode(Instset.NANKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                                else throw new Exception("The instruction is malformed");
+                                else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "NOT": 
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
                             insert_machinecode(Instset.NOT.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "SHL": 
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
@@ -794,7 +837,7 @@ public final class QEPUAssembler {
                             else
                                 if(op_types[0].equals("R") && op_types[1].equals("K") && op_types[2].equals("R")) // M K M
                                     insert_machinecode(Instset.SHLKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                                else throw new Exception("The instruction is malformed");
+                                else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "SHR": 
                         if(op_types[0].equals("R") && op_types[1].equals("R") && op_types[2].equals("R"))
@@ -805,15 +848,15 @@ public final class QEPUAssembler {
                             else
                                 if(op_types[0].equals("R") && op_types[1].equals("K") && op_types[2].equals("R")) // M K M
                                     insert_machinecode(Instset.SHRKR.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), extractNumber(operands[OP3]));
-                                else throw new Exception("The instruction is malformed");
+                                else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "INT":
                         if(op_types[0].equals("K")) insert_machinecode(Instset.INT.ordinal(), extractNumber(operands[OP1]),0,0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "DLY": 
                         if(op_types[0].equals("K")) insert_machinecode(Instset.DLY.ordinal(), extractNumber(operands[OP1]),0,0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "NOP": 
                         insert_machinecode(Instset.NOP.ordinal(), 0, 0, 0);
@@ -823,87 +866,85 @@ public final class QEPUAssembler {
                         break;   
                     case "X": 
                         if(op_types[0].equals("Q")) insert_machinecode(Instset.X.ordinal(), extractNumber(operands[OP1]),0,0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "Y": 
                         if(op_types[0].equals("Q")) insert_machinecode(Instset.Y.ordinal(), extractNumber(operands[OP1]),0,0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "Z": 
                         if(op_types[0].equals("Q")) insert_machinecode(Instset.Z.ordinal(), extractNumber(operands[OP1]),0,0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "H": 
                         if(op_types[0].equals("Q")) insert_machinecode(Instset.H.ordinal(), extractNumber(operands[OP1]),0,0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "S": 
                         if(op_types[0].equals("Q")) insert_machinecode(Instset.S.ordinal(), extractNumber(operands[OP1]),0,0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "T": 
                         if(op_types[0].equals("Q")) insert_machinecode(Instset.T.ordinal(), extractNumber(operands[OP1]),0,0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "ROX": 
                         if(op_types[0].equals("Q")) insert_machinecode(Instset.ROX.ordinal(), extractNumber(operands[OP1]),0,0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "ROY": 
                         if(op_types[0].equals("Q")) insert_machinecode(Instset.ROY.ordinal(), extractNumber(operands[OP1]),0,0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "ROZ": 
                         if(op_types[0].equals("Q")) insert_machinecode(Instset.ROZ.ordinal(), extractNumber(operands[OP1]),0,0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "CNO": 
                         if(op_types[0].equals("Q") && op_types[1].equals("Q")) insert_machinecode(Instset.CNO.ordinal(), extractNumber(operands[OP1]),extractNumber(operands[OP2]),0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "CSI": 
                         if(op_types[0].equals("Q") && op_types[1].equals("Q")) insert_machinecode(Instset.CSI.ordinal(), extractNumber(operands[OP1]),extractNumber(operands[OP2]),0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "SWA": 
                         if(op_types[0].equals("Q") && op_types[1].equals("Q")) insert_machinecode(Instset.SWA.ordinal(), extractNumber(operands[OP1]),extractNumber(operands[OP2]),0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "INC": 
                         if(op_types[0].equals("Q") && op_types[1].equals("Q")) insert_machinecode(Instset.INC.ordinal(), extractNumber(operands[OP1]),extractNumber(operands[OP2]),0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "DEC": 
                         if(op_types[0].equals("Q") && op_types[1].equals("Q")) insert_machinecode(Instset.DEC.ordinal(), extractNumber(operands[OP1]),extractNumber(operands[OP2]),0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "SWQ": 
                         if(op_types[0].equals("Q") && op_types[1].equals("Q")) insert_machinecode(Instset.SWQ.ordinal(), extractNumber(operands[OP1]),extractNumber(operands[OP2]),0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "SWI": 
                         if(op_types[0].equals("Q") && op_types[1].equals("Q")) insert_machinecode(Instset.SWI.ordinal(), extractNumber(operands[OP1]),extractNumber(operands[OP2]),0);
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "CSW": 
                         if(op_types[0].equals("Q") && op_types[1].equals("Q") && op_types[2].equals("Q")) 
                             insert_machinecode(Instset.CSW.ordinal(), extractNumber(operands[OP1]),extractNumber(operands[OP2]),extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "TOF": 
                         if(op_types[0].equals("Q") && op_types[1].equals("Q") && op_types[2].equals("Q")) 
                             insert_machinecode(Instset.TOF.ordinal(), extractNumber(operands[OP1]),extractNumber(operands[OP2]),extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "DEU": 
                         if(op_types[0].equals("Q") && op_types[1].equals("Q") && op_types[2].equals("Q")) 
                             insert_machinecode(Instset.DEU.ordinal(), extractNumber(operands[OP1]),extractNumber(operands[OP2]),extractNumber(operands[OP3]));
-                        else throw new Exception("The instruction is malformed");
+                        else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;   
                     case "": break; // IGNORE EMPTY LINE
-                    default:
-                        // USING VARIABLES (MAY OR MAY NOT IMPLEMENT)
-                        break;
+                    default: break;
                 }
             }
         }catch(Exception e){
