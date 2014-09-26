@@ -248,16 +248,18 @@ public final class QEPUAssembler {
     }
     
     public void setLineOffsets(String assembly){
-    	// SET OFFSETS FOR: STRINGS AND VARIABLES
+    	// SET OFFSETS FOR: STRINGS, VARIABLES AND INTERVALS
     	String[] assembly_splitted=assembly.split("\n");
     	for(int i=0;i<assembly_splitted.length;i++){
-	    	Matcher line_match=Pattern.compile("(?:\\$.+? ['|\"]?(.+?)['|\"]? ([0-9]+))|\"(.+?)\"").matcher(assembly_splitted[i]);
+	    	Matcher line_match=Pattern.compile("(?:\\$.+? ['|\"]?(.+?)['|\"]? ([0-9]+))|\"(.+?)\"|([0-9]+)(?:[ |	]+?)?-+(?:[ |	]+?)?([0-9]+)").matcher(assembly_splitted[i]);
     		while(line_match.find())
 	    		if(line_match.group(1)!=null)
 	    			code_lineoffsets.put(i+1, Integer.parseInt(line_match.group(2))); // SET OFFSET FOR VARIABLES
-				else
-	    			code_lineoffsets.put(i+1, fix_str_newlines(line_match.group(3)).length()+1); // SET OFFSET FOR STRINGS
-	    }
+				else if(line_match.group(3)!=null)
+					code_lineoffsets.put(i+1, fix_str_newlines(line_match.group(3)).length()+1); // SET OFFSET FOR STRINGS
+				else if(line_match.group(4)!=null)
+					code_lineoffsets.put(i+1,Math.abs(Integer.parseInt(line_match.group(4))-Integer.parseInt(line_match.group(5))+1)); // SET OFFSET FOR INTERVALS
+		}
     }
     
     public boolean include_file_isincluded(String include_filename){
@@ -281,8 +283,7 @@ public final class QEPUAssembler {
     }
     
     public String handle_intervals(String assembly) throws Exception{
-    	Pattern intervals_patt=Pattern.compile("([0-9| |	]+)-+(?:[ |	]+?)?([0-9]+)",Pattern.CASE_INSENSITIVE|Pattern.MULTILINE);
-    	int line_ctr=0;
+    	Pattern intervals_patt=Pattern.compile("([0-9]+)(?:[ |	]+?)?-+(?:[ |	]+?)?([0-9]+)",Pattern.CASE_INSENSITIVE|Pattern.MULTILINE);
     	for(String line:assembly.split("\\n")){
     		Matcher intervals_match=intervals_patt.matcher(line.trim());
     		String interval_substitute="";
@@ -291,19 +292,22 @@ public final class QEPUAssembler {
     			int start_interval=Integer.parseInt(intervals_match.group(1).trim());
         		int end_interval=Integer.parseInt(intervals_match.group(2).trim());
     			
-        		if(start_interval>end_interval) throw new Exception("The start interval "+start_interval+" is greater than the end interval "+end_interval);
-        		
         		//IF THERE'S 1 INTERVAL:
-        		for(int i=start_interval;i<=end_interval;i++) interval_substitute+=line.replaceFirst(intervals_match.group(0),Integer.toString(i)+" ")+"\n";
+        		if(start_interval<=end_interval)
+            		for(int i=start_interval;i<=end_interval;i++) interval_substitute+=line.replaceFirst(intervals_match.group(0),Integer.toString(i)+" ")+"\n";
+        		else
+        			for(int i=start_interval;i>=end_interval;i--) interval_substitute+=line.replaceFirst(intervals_match.group(0),Integer.toString(i)+" ")+"\n";
         		
         		//IF THERE'S MORE THAN 1 INTERVAL:
         		while(intervals_match.find()){
         			start_interval=Integer.parseInt(intervals_match.group(1).trim());
         			end_interval=Integer.parseInt(intervals_match.group(2).trim());
-        			if(start_interval>end_interval) throw new Exception("(Line: "+line_ctr+") The start interval '"+start_interval+"' is greater than the end interval '"+end_interval+"'");
-            		
-        			for(int i=start_interval;i<=end_interval;i++) interval_substitute=interval_substitute.replaceFirst(intervals_match.group(0), Integer.toString(i)+" ");
-        		}
+        			
+        			if(start_interval<=end_interval)
+            			for(int i=start_interval;i<=end_interval;i++) interval_substitute=interval_substitute.replaceFirst(intervals_match.group(0), Integer.toString(i)+" ");
+            		else 
+            			for(int i=start_interval;i>=end_interval;i--) interval_substitute=interval_substitute.replaceFirst(intervals_match.group(0), Integer.toString(i)+" ");
+            	}
         		
         		//CHECK FOR LEFTOVER INTERVALS:
         		intervals_match=intervals_patt.matcher(interval_substitute);
@@ -311,11 +315,8 @@ public final class QEPUAssembler {
         		
         		//LINE IS PREPARED TO BE REPLACED BY THE PROPER INTERVAL:
         		assembly=assembly.replace(line+"\n",interval_substitute);
-        		//SET LINE OFFSETS:
-        		code_lineoffsets.put(line_ctr+1,interval_substitute.split("\n").length);
         		break;
         	}
-    		line_ctr++;
     	}
     	return assembly;
     }
