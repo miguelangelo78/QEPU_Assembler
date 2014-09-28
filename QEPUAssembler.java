@@ -78,8 +78,8 @@ public final class QEPUAssembler {
         put("CMT",new int[]{FUNC,2});
         put("CMP",new int[]{FUNC,2});
         put("CME",new int[]{FUNC,2});
-        put("SEA",new int[]{FUNC,2});
-        put("GEA",new int[]{FUNC,2});
+        put("SEA",new int[]{FUNC,1});
+        put("GEA",new int[]{FUNC,1});
         put("BES",new int[]{FUNC,1});
         put("BLW",new int[]{FUNC,1});
         put("BLE",new int[]{FUNC,1});
@@ -191,12 +191,9 @@ public final class QEPUAssembler {
     	create_file();
     	insert_machinecode(BINARY_FILE_EOF, BINARY_FILE_EOF, BINARY_FILE_EOF, BINARY_FILE_EOF); // EOF
         try{
-	    	for(int i=0;i<machinecode.size();i++){
-	    		if(i%4==0){
-	    			mc_fos.write(machinecode.get(i));
-	    		}else
-	    			mc_fos.write((ByteBuffer.allocate(4).putInt(machinecode.get(i)).array()));
-	    	}
+	    	for(int i=0;i<machinecode.size();i++)
+	    		if(i%4==0) mc_fos.write(machinecode.get(i));
+	    		else mc_fos.write((ByteBuffer.allocate(4).putInt(machinecode.get(i)).array()));	
     	}catch(Exception e){}
        	close_file();
     }
@@ -206,7 +203,6 @@ public final class QEPUAssembler {
     }
     
     public String fix_str_newlines(String src){
-        //FIX NEWLINES:
         StringBuilder strBldr=new StringBuilder(src);
         while(src.contains("\\n")){
             int newline_index=src.indexOf("\\n");
@@ -483,7 +479,6 @@ public final class QEPUAssembler {
                             for(int i=0;i<var_bytelength;i++)
                                 if(i<var2_bytelength) insert_machinecode(Instset.MOM.ordinal(), code_variables.get(var1)[0]+i, code_variables.get(var2)[0]+i, 0);
                                 else insert_machinecode(Instset.CRW.ordinal(), code_variables.get(var1)[0]+i,0, 0);
-                            //code_lineoffsets.put(code_currline+1,var_bytelength);
                         }else
                         if(op_types[1].equals("S")){ // $VAR=STRING
                             operands[OP2]=fix_str_newlines(operands[OP2])+STRING_TERMINATOR;
@@ -492,7 +487,6 @@ public final class QEPUAssembler {
                                 insert_machinecode(Instset.CRW.ordinal(),code_variables_address_start+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
                             for(int i=operands[OP2].length();i<var_bytelength;i++) // WRITE THE REST (EMPTY SPACE RESERVED FOR THE VARIABLE)
                                 insert_machinecode(Instset.CRW.ordinal(),code_variables_address_start+i, 0, 0);
-                            //code_lineoffsets.put(code_currline+1,var_bytelength);
                         }
                         else if(op_types[1].equals("K")){ // $VAR=NUMBER
                             insert_machinecode(Instset.CRW.ordinal(),code_variables_address_start,extractNumber(operands[OP2]),0); // WRITE THE CONTENT
@@ -606,13 +600,13 @@ public final class QEPUAssembler {
                         else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;    
                     case "SEA": 
-                        if(op_types[0].equals("F") && op_types[1].equals("K"))
-                            insert_machinecode(Instset.SEA.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
+                        if(op_types[0].equals("K"))
+                            insert_machinecode(Instset.SEA.ordinal(), extractNumber(operands[OP1]), 0, 0);
                         else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;    
                     case "GEA": 
-                        if(op_types[0].equals("M") && op_types[1].equals("F"))
-                            insert_machinecode(Instset.GEA.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
+                    	if(op_types[0].equals("K"))
+                            insert_machinecode(Instset.GEA.ordinal(), extractNumber(operands[OP1]), 0, 0);
                         else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;    
                     case "BES": 

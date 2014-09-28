@@ -25,7 +25,7 @@ public class qassembler {
 	}
 	
 	public static void main(String[] args) {
-		//String n="C:\\Users\\Miguel\\Desktop\\QEPU_Libs\\main.qasm";
+		//String n="C:\\Users\\Miguel\\Desktop\\QASM_Libs\\main.qasm";
 		//JOptionPane.showMessageDialog(null,new QEPUAssembler(n.replace(FILESOURCE_FORMAT,FILEBINARY_FORMAT)).assemble(readFile(n)), "Assembled successfully", JOptionPane.INFORMATION_MESSAGE);
 		
 		if(args.length!=1) messagebox("Quantum Assembler Error","Usage: java -jar qassembler.jar \"C:\\....\\filename"+FILESOURCE_FORMAT+"\"",JOptionPane.ERROR_MESSAGE,true);
