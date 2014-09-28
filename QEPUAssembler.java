@@ -24,7 +24,7 @@ public final class QEPUAssembler {
     //CONSTANTS:
     private static final int MAX_OPERAND_COUNT=3,BINARY_FILE_EOF=0xFF;
     private static final char STRING_TERMINATOR='$';
-    private static final String FILESOURCE_FORMAT="qep",FILEBINARY_FORMAT="bin",FILEMAIN_ENTRYPOINT="main";
+    private static final String FILESOURCE_FORMAT="qasm",FILEBINARY_FORMAT="bin",FILEMAIN_ENTRYPOINT="main";
     private static final String INVALID_INSTRUCTION_MSG="The instruction is malformed";
     //CONSTANT REGISTERS:
     //CARRIERS:
@@ -48,7 +48,7 @@ public final class QEPUAssembler {
         POP,PSH, // MEMORY STACK MOVEMENT
         CMT,CMP, // CONSTANT QUBIT DATA MOVEMENT
         CME, // COMPARE
-        SEF,GEF, // SET AND GET FLAGS
+        SEA,GEA, // SET AND GET FLAGS
         BES,BLW,BLE,BEQ,BGE,BGR,BDI,BZE,BNZ, // BRANCHING WITH OR WITHOUT JUMP STACK
         CALL,RET,JMP, // UNCONDICIONAL JUMPS WITH AND WITHOUT JUMP STACK
         ADD,ADDRK,SUB,SUBRK,SUBKR,MUL,MULRK,DIV,DIVRK,DIVKR,AND,ANDRK,ANDKR,OR,ORRK,ORKR,NOR,NORRK,NORKR,XOR,XORRK,XORKR,NAN,NANRK,NANKR,NOT,SHL,SHLRK,SHLKR,SHR,SHRRK,SHRKR, // ARITHMETIC AND LOGIC OPERATIONS
@@ -78,8 +78,8 @@ public final class QEPUAssembler {
         put("CMT",new int[]{FUNC,2});
         put("CMP",new int[]{FUNC,2});
         put("CME",new int[]{FUNC,2});
-        put("SEF",new int[]{FUNC,2});
-        put("GEF",new int[]{FUNC,2});
+        put("SEA",new int[]{FUNC,2});
+        put("GEA",new int[]{FUNC,2});
         put("BES",new int[]{FUNC,1});
         put("BLW",new int[]{FUNC,1});
         put("BLE",new int[]{FUNC,1});
@@ -267,21 +267,6 @@ public final class QEPUAssembler {
     	return false;
     }
     
-    public void include_file(String include_name){
-    	try {
-    		System.out.println("Linking '"+include_name+"'...");
-    		int include_code_linecount=0;
-        	String include_code="";
-    		String line="";
-    		BufferedReader br=new BufferedReader(new FileReader(mc_fullpath.replace(getFilename(mc_fullpath)+"."+FILEBINARY_FORMAT,include_name)));
-    		while ((line= br.readLine()) != null){include_code+=line+"\n";include_code_linecount++;}
-    		br.close();
-			include_files.add(new Object[]{include_name,include_code,include_code_linecount});
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-    }
-    
     public String handle_intervals(String assembly) throws Exception{
     	Pattern intervals_patt=Pattern.compile("([0-9]+)(?:[ |	]+?)?-+(?:[ |	]+?)?([0-9]+)",Pattern.CASE_INSENSITIVE|Pattern.MULTILINE);
     	for(String line:assembly.split("\\n")){
@@ -319,6 +304,21 @@ public final class QEPUAssembler {
         	}
     	}
     	return assembly;
+    }
+    
+    public void include_file(String include_name){
+    	try {
+    		System.out.println("Linking '"+include_name+"'...");
+    		int include_code_linecount=0;
+        	String include_code="";
+    		String line="";
+    		BufferedReader br=new BufferedReader(new FileReader(mc_fullpath.replace(getFilename(mc_fullpath)+"."+FILEBINARY_FORMAT,include_name)));
+    		while ((line= br.readLine()) != null){include_code+=line+"\n";include_code_linecount++;}
+    		br.close();
+			include_files.add(new Object[]{include_name,include_code,include_code_linecount});
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
     }
     
     public String handle_including(String assembly)throws Exception{
@@ -453,12 +453,13 @@ public final class QEPUAssembler {
                     operands[i+1]=operands[i+1].replaceAll("'|\"", "");
                 }
                 
-                //TRANSFORM OPERAND POINTERS INTO CONSTANT NUMBERS (WHICH IS THE ADDRESS OF THE POINTER):
+                //TRANSFORM OPERAND POINTERS AND CHARACTERS INTO CONSTANT NUMBERS (WHICH IS THE ADDRESS OF THE POINTER):
                 for(int i=0;i<MAX_OPERAND_COUNT;i++)
 	                try{
-	                	if(op_types[i].equals("*M") || op_types[i].equals("*R") || op_types[i].equals("*Q") || op_types[i].equals("*L") ||  op_types[i].equals("*V")){
+	                	if(op_types[i].equals("*M") || op_types[i].equals("*R") || op_types[i].equals("*Q") || op_types[i].equals("*L") ||  op_types[i].equals("*V") || op_types[i].equals("C")){
 		            		if(op_types[i].equals("*L")) operands[i+1]=""+code_labels.get(operands[i+1].replaceAll("\\*|@",""));
 		            		else if(op_types[i].equals("*V")) operands[i+1]=""+code_variables.get(operands[i+1].replaceAll("\\*",""))[0];
+		            		else if(op_types[i].equals("C")) operands[i+1]=Integer.toString((int)operands[i+1].charAt(0));
 		            		else operands[i+1]=""+extractNumber(operands[i+1]);
 		            		op_types[i]="K";
 		            	}
@@ -492,13 +493,7 @@ public final class QEPUAssembler {
                             for(int i=operands[OP2].length();i<var_bytelength;i++) // WRITE THE REST (EMPTY SPACE RESERVED FOR THE VARIABLE)
                                 insert_machinecode(Instset.CRW.ordinal(),code_variables_address_start+i, 0, 0);
                             //code_lineoffsets.put(code_currline+1,var_bytelength);
-                        }else if(op_types[1].equals("C")) // $VAR=CHAR
-                            if(operands[OP2].length()!=1) throw new Exception("The second operand has incorrect size");
-                            else{
-                                insert_machinecode(Instset.CRW.ordinal(), code_variables_address_start,extractNumber(""+((int)operands[OP2].charAt(0))), 0); // WRITE THE CONTENT
-                                for(int i=1;i<var_bytelength;i++) // WRITE THE REST (EMPTY SPACE RESERVED FOR THE VARIABLE)
-                                    insert_machinecode(Instset.CRW.ordinal(), code_variables_address_start+i, 0, 0);
-                            }
+                        }
                         else if(op_types[1].equals("K")){ // $VAR=NUMBER
                             insert_machinecode(Instset.CRW.ordinal(),code_variables_address_start,extractNumber(operands[OP2]),0); // WRITE THE CONTENT
                             for(int i=1;i<var_bytelength;i++) // WRITE THE REST (EMPTY SPACE RESERVED FOR THE VARIABLE)
@@ -525,10 +520,6 @@ public final class QEPUAssembler {
                                 if(i<operands[OP2].length()) insert_machinecode(Instset.CRW.ordinal(), code_variables.get(operands[OP1])[0]+i, extractNumber(""+((int)operands[OP2].charAt(i))), 0);
                                 else insert_machinecode(Instset.CRW.ordinal(), code_variables.get(operands[OP1])[0]+i, 0, 0);
                         }
-                        else
-                        if(op_types[0].equals("V") && op_types[1].equals("C")) // V C
-                            if(operands[OP2].length()!=1) throw new Exception("The second operand has incorrect size");
-                            else insert_machinecode(Instset.CRW.ordinal(),code_variables.get(operands[OP1])[0],extractNumber(""+((int)operands[OP2].charAt(0))), 0);
                         else
                         if(op_types[0].equals("V") && op_types[1].equals("K")) // V K
                             insert_machinecode(Instset.CRW.ordinal(),code_variables.get(operands[OP1])[0],extractNumber(operands[OP2]),0);
@@ -578,16 +569,6 @@ public final class QEPUAssembler {
                         if(op_types[0].equals("M") && op_types[1].equals("K")) // M K
                             insert_machinecode(Instset.CRW.ordinal(),extractNumber(operands[OP1]),extractNumber(operands[OP2]),0);
                         else
-                        if(op_types[0].equals("M") && op_types[1].equals("C")) // M C
-                        {
-                        	if(operands[OP2].length()!=1) throw new Exception("The second operand has incorrect size");
-                            else insert_machinecode(Instset.CRW.ordinal(), extractNumber(operands[OP1]),extractNumber(""+((int)operands[OP2].charAt(0))), 0);
-                        }
-                        	else
-                        if(op_types[0].equals("R") && op_types[1].equals("C")) // R C
-                            if(operands[OP2].length()!=1) throw new Exception("The second operand has incorrect size");
-                            else insert_machinecode(Instset.CQW.ordinal(), extractNumber(operands[OP1]),extractNumber(""+((int)operands[OP2].charAt(0))), 0);
-                        else
                         if(op_types[0].equals("M") && op_types[1].equals("S")){ // M S
                             operands[OP2]=fix_str_newlines(operands[OP2])+STRING_TERMINATOR;
                             for(int i=0;i<operands[OP2].length();i++)
@@ -624,14 +605,14 @@ public final class QEPUAssembler {
                             insert_machinecode(Instset.CME.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
                         else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;    
-                    case "SEF": 
+                    case "SEA": 
                         if(op_types[0].equals("F") && op_types[1].equals("K"))
-                            insert_machinecode(Instset.SEF.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
+                            insert_machinecode(Instset.SEA.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
                         else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;    
-                    case "GEF": 
+                    case "GEA": 
                         if(op_types[0].equals("M") && op_types[1].equals("F"))
-                            insert_machinecode(Instset.GEF.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
+                            insert_machinecode(Instset.GEA.ordinal(), extractNumber(operands[OP1]), extractNumber(operands[OP2]), 0);
                         else throw new Exception(INVALID_INSTRUCTION_MSG);
                         break;    
                     case "BES": 
