@@ -7,3 +7,4 @@ mov r4 10
 mov m0 "Teste"
 mov roc *m0
 int 7
+gea 0
